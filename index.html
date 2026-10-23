@@ -57,7 +57,7 @@
       text-shadow: 0 0 12px rgba(255, 255, 255, 0.75), 0 0 25px rgba(255, 255, 255, 0.35);
     }
 
-    /* 未點亮的段數底色 (就像圖片中的淡灰底陰影 88:88) */
+    /* 未點亮的段數底色 (淡灰底陰影 88:88) */
     .lcd-ghost {
       color: rgba(255, 255, 255, 0.08);
       user-select: none;
@@ -134,25 +134,25 @@
           
           <!-- 日期與星期 -->
           <div class="mt-1">
-            <div id="date-display" class="text-lg font-bold text-white tracking-tight">10月24日</div>
+            <div id="date-display" class="text-lg font-bold text-white tracking-tight">--月--日</div>
             <div class="flex items-center gap-2 mt-0.5">
-              <span id="weekday-display" class="text-sm font-semibold text-zinc-300">星期四</span>
-              <span id="day-progress-text" class="text-[10px] text-indigo-400 font-medium font-mono">今日已過 45%</span>
+              <span id="weekday-display" class="text-sm font-semibold text-zinc-300">星期--</span>
+              <span id="day-progress-text" class="text-[10px] text-indigo-400 font-medium font-mono">今日已過 --%</span>
             </div>
           </div>
         </div>
 
-        <!-- 經典 7 段式 LCD 電子數位時鐘 (如圖所示：帶淡灰色 88:88 背景透視，純白發光前字) -->
+        <!-- 經典 7 段式 LCD 電子數位時鐘 -->
         <div class="my-auto py-2 flex flex-col items-center justify-center">
           <div class="relative inline-block lcd-seven-segment text-5xl sm:text-6xl md:text-7xl font-bold leading-none select-none">
-            <!-- 底層：未發光的淡灰色段數 88:88 (完全還原圖片中 LCD 液晶段底效果) -->
+            <!-- 底層：未發光的淡灰色段數 88:88 -->
             <div class="lcd-ghost tracking-widest" aria-hidden="true">88:88</div>
             <!-- 頂層：真實點亮的亮白時間 -->
-            <div id="clock-hm" class="absolute inset-0 lcd-active tracking-widest flex items-center justify-center">08:42</div>
+            <div id="clock-hm" class="absolute inset-0 lcd-active tracking-widest flex items-center justify-center">00:00</div>
           </div>
           <!-- 當天進度條 -->
           <div class="w-full bg-zinc-800 h-1.5 rounded-full mt-4 overflow-hidden border border-zinc-700/60">
-            <div id="day-progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-500 h-full w-1/2 transition-all duration-1000 rounded-full"></div>
+            <div id="day-progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-500 h-full w-0 transition-all duration-1000 rounded-full"></div>
           </div>
         </div>
 
@@ -160,7 +160,7 @@
         <div class="pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
           <div class="flex items-center gap-1.5">
             <i data-lucide="sun" class="w-4 h-4 text-amber-400"></i>
-            <span id="weather-brief" class="text-zinc-200 font-medium">天氣晴朗 24°C</span>
+            <span id="weather-brief" class="text-zinc-200 font-medium">載入天氣中...</span>
           </div>
           <span class="text-[11px] text-zinc-400 font-mono" id="time-timezone">GMT+8 澳門 (Macau)</span>
         </div>
@@ -227,7 +227,7 @@
             </div>
           </div>
 
-          <!-- 4 格指標 (體感、濕度、紫外線、降雨/風速) -->
+          <!-- 4 格指標 (體感、濕度、紫外線、風速) -->
           <div class="grid grid-cols-2 gap-2 mt-2.5">
             <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-2 flex items-center gap-2">
               <i data-lucide="thermometer" class="w-4 h-4 text-rose-400 flex-shrink-0"></i>
@@ -300,17 +300,26 @@
               iPhone 行程來源設定
             </label>
             <div class="flex gap-1 bg-zinc-800 p-0.5 rounded-lg border border-zinc-700">
-              <button type="button" onclick="switchCalMode('custom')" id="cal-mode-custom-btn" class="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-600 text-white transition">
-                手動 / 自訂行程
+              <button type="button" onclick="switchCalMode('url')" id="cal-mode-url-btn" class="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-600 text-white transition">
+                網址訂閱 (.ics / iCloud)
               </button>
-              <button type="button" onclick="switchCalMode('url')" id="cal-mode-url-btn" class="px-2 py-0.5 rounded text-[11px] font-medium text-zinc-400 hover:text-white transition">
-                網址訂閱 (.ics)
+              <button type="button" onclick="switchCalMode('custom')" id="cal-mode-custom-btn" class="px-2 py-0.5 rounded text-[11px] font-medium text-zinc-400 hover:text-white transition">
+                手動填寫行程
               </button>
             </div>
           </div>
 
-          <!-- 模式 A：手動新增/管理行程 -->
-          <div id="cal-custom-panel" class="space-y-2 mt-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+          <!-- 模式 A：iCloud / Google 訂閱網址 -->
+          <div id="cal-url-panel" class="space-y-2 mt-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+            <input id="setting-ical-url" type="text" placeholder="直接貼上 webcal:// 或 https:// 開頭的公開日曆網址" 
+                   class="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white transition" />
+            <p class="text-[10px] text-zinc-400 leading-relaxed">
+              💡 支援 iPhone「公開日曆」分享連結。系統會自動透過多重備援伺服器進行同步，只顯示「今天」的行程。
+            </p>
+          </div>
+
+          <!-- 模式 B：手動新增/管理行程 -->
+          <div id="cal-custom-panel" class="space-y-2 mt-2 hidden bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
             <div class="flex items-center justify-between">
               <span class="text-[11px] text-zinc-300 font-medium">自訂今日行程清單：</span>
               <button type="button" onclick="addCustomEventRow()" class="text-[10px] bg-indigo-600/80 hover:bg-indigo-600 text-white px-2 py-0.5 rounded flex items-center gap-1">
@@ -320,18 +329,6 @@
             <div id="custom-events-container" class="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar">
               <!-- JS 動態生成自訂行程列 -->
             </div>
-            <p class="text-[10px] text-zinc-500 leading-tight">
-              💡 直接在上面填寫時間與代辦事項，點儲存即可永久顯示在儀表板中央。
-            </p>
-          </div>
-
-          <!-- 模式 B：iCloud / Google 訂閱網址 -->
-          <div id="cal-url-panel" class="space-y-2 mt-2 hidden bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-            <input id="setting-ical-url" type="text" placeholder="webcal://p01-caldav.icloud.com/... 或 https://.../basic.ics" 
-                   class="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white transition" />
-            <p class="text-[10px] text-zinc-400 leading-relaxed">
-              貼上 iCloud 公開日曆網址（webcal:// 或 https://），網頁會自動篩選並即時列出「今天」的全部事項。
-            </p>
           </div>
         </div>
 
@@ -353,16 +350,11 @@
   <script>
     const DEFAULT_CONFIG = {
       icalUrl: '',
-      calMode: 'custom',
-      customEvents: [
-        { time: '09:00 - 10:00', title: '早晨晨會 / 郵件回覆', location: '書房工作區' },
-        { time: '12:30 - 13:30', title: '午餐休息 / 望廈周邊用餐', location: '黑沙環商圈' },
-        { time: '15:30 - 16:30', title: '日常採買 / 散步運動', location: '望廈體育中心' },
-        { time: '19:30 - 21:00', title: '家庭晚餐 & 閱讀時間', location: '客廳' }
-      ]
+      calMode: 'url',
+      customEvents: []
     };
 
-    let storedConfig = localStorage.getItem('desk_config_macau_weather_v1');
+    let storedConfig = localStorage.getItem('desk_config_macau_v5');
     let appConfig = null;
     try {
       appConfig = JSON.parse(storedConfig);
@@ -372,7 +364,7 @@
     }
 
     function saveConfigToStorage() {
-      localStorage.setItem('desk_config_macau_weather_v1', JSON.stringify(appConfig));
+      localStorage.setItem('desk_config_macau_v5', JSON.stringify(appConfig));
     }
 
     /* 氣泡通知 */
@@ -382,7 +374,7 @@
       toast.classList.remove('opacity-0', 'pointer-events-none');
       setTimeout(() => {
         toast.classList.add('opacity-0', 'pointer-events-none');
-      }, 2400);
+      }, 2500);
     }
 
     /* ====================================================================
@@ -423,38 +415,8 @@
     updateClock();
 
     /* ====================================================================
-     * 2. 中間：iPhone / iCloud 日曆排程 (嚴格過濾今天事項)
+     * 2. 中間：iPhone / iCloud 日曆排程
      * ==================================================================== */
-    function getSampleTodayEvents() {
-      const today = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const curHour = today.getHours();
-
-      return [
-        {
-          id: '1',
-          time: `${pad((curHour + 1) % 24)}:00 - ${pad((curHour + 2) % 24)}:00`,
-          title: '專案排程與事項整理',
-          location: '書房',
-          isNow: true
-        },
-        {
-          id: '2',
-          time: '12:30 - 13:30',
-          title: '午餐時光 / 望廈周邊',
-          location: '望廈商圈',
-          isNow: false
-        },
-        {
-          id: '3',
-          time: '19:00 - 20:30',
-          title: '晚間放鬆 & 閱讀',
-          location: '客廳',
-          isNow: false
-        }
-      ];
-    }
-
     let parsedCalendarEvents = [];
 
     function parseIcsDate(rawVal) {
@@ -513,12 +475,14 @@
           inEvent = false;
           if (currentEvent.title && currentEvent.startDate) {
             let matchesToday = false;
+            // 判定是否為今天單次或跨天事項
             if (isDateToday(currentEvent.startDate, today)) {
               matchesToday = true;
-            } else if (currentEvent.endDate && currentEvent.startDate < today && currentEvent.endDate >= today) {
+            } else if (currentEvent.endDate && currentEvent.startDate <= today && currentEvent.endDate >= today) {
               matchesToday = true;
             }
 
+            // 判斷重複事件 (RRULE)
             if (!matchesToday && currentEvent.rrule) {
               const rule = currentEvent.rrule;
               if (currentEvent.startDate <= today) {
@@ -594,36 +558,41 @@
       return todayEvents;
     }
 
-    function normalizeICloudUrl(rawUrl) {
+    function cleanAndFormatIcloudUrl(rawUrl) {
+      if (!rawUrl) return '';
       let url = rawUrl.trim();
+      const match = url.match(/(webcal:\/\/|https?:\/\/)[^\s]+/i);
+      if (match) {
+        url = match[0];
+      }
       if (url.startsWith('webcal://')) {
         url = 'https://' + url.slice(9);
-      } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
       }
       return url;
     }
 
     async function fetchCalendarICS(rawUrl) {
-      const targetUrl = normalizeICloudUrl(rawUrl);
-      const encodedTarget = encodeURIComponent(targetUrl);
+      const targetUrl = cleanAndFormatIcloudUrl(rawUrl);
+      if (!targetUrl) throw new Error('網址為空');
 
-      const proxyList = [
-        `https://corsproxy.io/?url=${encodedTarget}`,
-        `https://api.allorigins.win/raw?url=${encodedTarget}`,
-        `https://api.codetabs.com/v1/proxy?quest=${encodedTarget}`
+      // 3 組不同節點的高相容性公共 CORS 代理
+      const proxies = [
+        (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+        (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+        (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
       ];
 
       let lastError = null;
-      for (const proxyUrl of proxyList) {
+      for (const getProxyUrl of proxies) {
         try {
+          const proxyUrl = getProxyUrl(targetUrl);
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const timer = setTimeout(() => controller.abort(), 9000);
           const res = await fetch(proxyUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
+          clearTimeout(timer);
           if (res.ok) {
             const text = await res.text();
-            if (text.includes('BEGIN:VCALENDAR')) {
+            if (text && text.includes('BEGIN:VCALENDAR')) {
               return text;
             }
           }
@@ -631,51 +600,58 @@
           lastError = e;
         }
       }
-      throw lastError || new Error('無法從代理伺服器獲取日曆資料');
+      throw lastError || new Error('連線逾時或代理無法存取');
     }
 
     async function refreshCalendarData(isManual = false) {
       const statusEl = document.getElementById('cal-sync-status');
-      statusEl.textContent = '更新中...';
+      statusEl.textContent = '連線同步中...';
 
-      if (appConfig.calMode === 'custom' && appConfig.customEvents && appConfig.customEvents.length > 0) {
-        parsedCalendarEvents = appConfig.customEvents.map((ev, idx) => ({
-          id: String(idx + 1),
-          time: ev.time || '即將進行',
-          title: ev.title || '無標題事項',
-          location: ev.location || '待辦事項',
-          isNow: idx === 0
-        }));
-        renderCalendarEvents(parsedCalendarEvents);
-        statusEl.textContent = `自訂行程 (${parsedCalendarEvents.length} 項)`;
-        if (isManual) showToast('已更新自訂行程');
-        return;
-      }
+      // 1. 網址訂閱模式 (.ics / iCloud)
+      if (appConfig.calMode === 'url') {
+        if (!appConfig.icalUrl || appConfig.icalUrl.trim().length < 8) {
+          statusEl.textContent = '尚未設定日曆網址';
+          renderCalendarEvents([]);
+          return;
+        }
 
-      if (appConfig.calMode === 'url' && appConfig.icalUrl && appConfig.icalUrl.trim().length > 10) {
         try {
           const icsText = await fetchCalendarICS(appConfig.icalUrl);
           const parsed = parseICS(icsText);
           parsedCalendarEvents = parsed;
           renderCalendarEvents(parsedCalendarEvents);
           
-          if (parsed && parsed.length > 0) {
-            statusEl.textContent = `今日 ${parsed.length} 項事項`;
-            if (isManual) showToast(`今日有 ${parsed.length} 個行程！`);
+          if (parsed.length > 0) {
+            statusEl.textContent = `已同步 (今日 ${parsed.length} 項)`;
+            if (isManual) showToast(`成功同步！今日共有 ${parsed.length} 個行程`);
           } else {
             statusEl.textContent = '今日無排定行程';
-            if (isManual) showToast('今日無排定行程');
+            if (isManual) showToast('連線成功，今日無待辦行程');
           }
           return;
         } catch (err) {
-          statusEl.textContent = '同步失敗 (點設定檢查)';
-          if (isManual) showToast('同步失敗：請檢查網址或切換手動模式');
+          console.warn('日曆同步失敗:', err);
+          statusEl.textContent = '連線失敗 (點同步重試)';
+          if (isManual) showToast('連線失敗：請檢查網址或稍後重試');
+          renderCalendarEvents(parsedCalendarEvents);
+          return;
         }
       }
 
-      parsedCalendarEvents = getSampleTodayEvents();
-      renderCalendarEvents(parsedCalendarEvents);
-      statusEl.textContent = '示範行程 (可在設定編輯)';
+      // 2. 手動行程模式
+      if (appConfig.calMode === 'custom') {
+        const events = appConfig.customEvents || [];
+        parsedCalendarEvents = events.map((ev, idx) => ({
+          id: String(idx + 1),
+          time: ev.time || '全天事項',
+          title: ev.title || '無標題事項',
+          location: ev.location || '待辦事項',
+          isNow: idx === 0
+        }));
+        renderCalendarEvents(parsedCalendarEvents);
+        statusEl.textContent = `自訂行程 (${parsedCalendarEvents.length} 項)`;
+        if (isManual) showToast('已套用自訂行程');
+      }
     }
 
     function switchCalMode(mode) {
@@ -780,7 +756,6 @@
     /* ====================================================================
      * 3. 右側：澳門真實實時天氣 (經緯度: 22.1987, 113.5439 望廈/澳門半島)
      * ==================================================================== */
-    // WMO Weather Code 解讀對照表
     function interpretWmoCode(code, isDay = 1) {
       const codeMap = {
         0: { text: '晴朗', icon: isDay ? 'sun' : 'moon', color: 'text-amber-400' },
@@ -808,7 +783,6 @@
       const updateEl = document.getElementById('weather-update-time');
       if (isManual) updateEl.textContent = '更新中...';
 
-      // 澳門半島望廈中心坐標 (22.1987, 113.5439)
       const lat = 22.1987;
       const lon = 113.5439;
       const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,uv_index_max&timezone=Asia%2FMacau&forecast_days=2`;
@@ -822,7 +796,6 @@
         const daily = data.daily;
         const hourly = data.hourly;
 
-        // 1. 填入即時核心溫度與狀況
         const tempRounded = Math.round(current.temperature_2m);
         document.getElementById('macau-temp').textContent = tempRounded;
         
@@ -833,24 +806,20 @@
         iconBox.className = wmo.color;
         iconBox.innerHTML = `<i data-lucide="${wmo.icon}" class="w-8 h-8"></i>`;
 
-        // 2. 4 格指標 (體感, 濕度, 紫外線, 風速)
         document.getElementById('macau-apparent-temp').textContent = `${Math.round(current.apparent_temperature)}°C`;
         document.getElementById('macau-humidity').textContent = `${current.relative_humidity_2m}%`;
         const uvVal = daily.uv_index_max && daily.uv_index_max[0] != null ? Math.round(daily.uv_index_max[0]) : '--';
         document.getElementById('macau-uv').textContent = uvVal;
         document.getElementById('macau-wind').textContent = `${Math.round(current.wind_speed_10m)} km/h`;
 
-        // 3. 左下角時鐘區的天氣簡報同步更新
         document.getElementById('weather-brief').textContent = `${wmo.text} ${tempRounded}°C`;
 
-        // 4. 今日最高 / 最低溫
         if (daily.temperature_2m_max && daily.temperature_2m_min) {
           const tMax = Math.round(daily.temperature_2m_max[0]);
           const tMin = Math.round(daily.temperature_2m_min[0]);
           document.getElementById('macau-temp-range').textContent = `${tMin}° / ${tMax}°C`;
         }
 
-        // 5. 未來 4 小時氣溫趨勢
         const now = new Date();
         const currentHour = now.getHours();
         const hourlyBox = document.getElementById('macau-hourly-container');
@@ -891,7 +860,6 @@
       }
     }
 
-    // 每 15 分鐘自動刷新天氣數據
     setInterval(() => {
       fetchMacauWeather();
     }, 15 * 60 * 1000);
@@ -933,7 +901,7 @@
       } else if (doc.webkitRequestFullscreen) {
         doc.webkitRequestFullscreen();
       } else {
-        showToast('提示：點擊 Safari「分享」→「加入主畫面」可獲得最完美無網址列全螢幕體驗');
+        showToast('提示：點擊 Safari「分享」→「加入主畫面」可獲得全螢幕體驗');
       }
     }
 
@@ -942,7 +910,7 @@
      * ==================================================================== */
     function openSettings() {
       document.getElementById('setting-ical-url').value = appConfig.icalUrl || '';
-      switchCalMode(appConfig.calMode || 'custom');
+      switchCalMode(appConfig.calMode || 'url');
       renderCustomEventsInputs();
 
       const modal = document.getElementById('settings-modal');
