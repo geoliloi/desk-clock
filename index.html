@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- iOS Standalone Web App Meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="智慧桌曆時鐘" />
+  <title>iPhone 8 Plus 橫屏智慧資訊儀表板</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- 經典 7 段式 LCD / LED 電子時鐘專用數位字型 (DSEG7 Classic) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dseg@0.46.0/css/dseg.min.css">
+
+  <style>
+    /* 針對 iPhone 8 Plus 橫向安全區與觸控自適應 */
+    :root {
+      --sat: env(safe-area-inset-top);
+      --sar: env(safe-area-inset-right);
+      --sab: env(safe-area-inset-bottom);
+      --sal: env(safe-area-inset-left);
+    }
+    
+    body {
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+    }
+
+    /* 隱藏滾動條但保持滾動能力 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* 真實 7 節 LCD / LED 電子時鐘風格字體 (帶微斜體與真實八角筆劃) */
+    .lcd-seven-segment {
+      font-family: 'DSEG7-Classic', monospace;
+      font-style: italic;
+      letter-spacing: 0.06em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 點亮中的段數：極致純白發光效果 */
+    .lcd-active {
+      color: #ffffff;
+      text-shadow: 0 0 12px rgba(255, 255, 255, 0.75), 0 0 25px rgba(255, 255, 255, 0.35);
+    }
+
+    /* 未點亮的段數底色 (就像圖片中的淡灰底陰影 88:88) */
+    .lcd-ghost {
+      color: rgba(255, 255, 255, 0.08);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* 黑底 + 純白立體邊框卡片 (框是白色，底是深黑) */
+    .white-frame-panel {
+      background: rgba(16, 16, 20, 0.94);
+      border: 1.5px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 18px rgba(255, 255, 255, 0.08), inset 0 0 24px rgba(255, 255, 255, 0.02);
+    }
+
+    /* 轉向提示僅在直立手機時出現 */
+    @media (orientation: portrait) {
+      #rotate-notice {
+        display: flex !important;
+      }
+    }
+  </style>
+</head>
+<body class="h-full w-full bg-[#050507] text-white overflow-hidden select-none">
+
+  <!-- 轉向提醒 (直屏時提示橫放) -->
+  <div id="rotate-notice" class="fixed inset-0 z-50 bg-black/95 hidden flex-col items-center justify-center p-6 text-center text-white">
+    <div class="w-16 h-16 rounded-2xl border-2 border-indigo-400 border-dashed flex items-center justify-center animate-spin mb-4">
+      <i data-lucide="rotate-cw" class="w-8 h-8 text-indigo-300"></i>
+    </div>
+    <h2 class="text-xl font-bold mb-2">請將 iPhone 橫向擺放</h2>
+    <p class="text-xs text-zinc-400 max-w-xs leading-relaxed">
+      此儀表板專為橫屏（Landscape）桌面模式量身設計。請關閉「直向旋轉鎖定」並將手機橫放使用。
+    </p>
+  </div>
+
+  <!-- 主容器 (兼顧全螢幕 Safe Area) -->
+  <main class="h-full w-full flex flex-col justify-between pt-[env(safe-area-inset-top,0.5rem)] pb-[env(safe-area-inset-bottom,0.5rem)] pl-[env(safe-area-inset-left,0.75rem)] pr-[env(safe-area-inset-right,0.75rem)] p-2 box-border">
+
+    <!-- 頂部微型狀態條 -->
+    <header class="flex items-center justify-between px-3 py-1 text-[11px] text-zinc-400 border-b border-zinc-800">
+      <div class="flex items-center space-x-2">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="font-semibold tracking-wider text-white">HOME DESK DISPLAY</span>
+        <span class="text-zinc-600">|</span>
+        <span id="screen-wake-status" class="text-zinc-400 text-[10px]">螢幕常亮中</span>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button onclick="requestFullScreen()" id="fs-btn" class="hover:text-white transition flex items-center gap-1 text-[11px] bg-zinc-900 border border-white/60 px-2.5 py-0.5 rounded-lg text-zinc-200 shadow-sm hover:border-white">
+          <i data-lucide="maximize" class="w-3 h-3 text-indigo-400"></i>
+          <span>全螢幕</span>
+        </button>
+        <button onclick="openSettings()" class="hover:text-white transition flex items-center gap-1 text-[11px] bg-zinc-900 border border-white/60 px-2.5 py-0.5 rounded-lg text-zinc-200 shadow-sm hover:border-white">
+          <i data-lucide="settings" class="w-3 h-3 text-zinc-300"></i>
+          <span>設定</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 三欄核心區塊 (黑底 + 白框) -->
+    <div class="flex-1 grid grid-cols-12 gap-3 mt-2 min-h-0">
+      
+      <!-- ================= 1. 左側：電子時鐘、日期、星期幾 ================= -->
+      <section class="col-span-4 white-frame-panel rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden">
+        <!-- 柔和微光點綴 -->
+        <div class="absolute -top-12 -left-12 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span id="greeting" class="text-xs font-bold text-indigo-400 uppercase tracking-widest">早安</span>
+            <div id="lunar-tag" class="text-[11px] text-sky-300 bg-sky-950/60 px-2 py-0.5 rounded-full border border-sky-500/50 font-medium">
+              澳門 望廈
+            </div>
+          </div>
+          
+          <!-- 日期與星期 -->
+          <div class="mt-1">
+            <div id="date-display" class="text-lg font-bold text-white tracking-tight">10月24日</div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span id="weekday-display" class="text-sm font-semibold text-zinc-300">星期四</span>
+              <span id="day-progress-text" class="text-[10px] text-indigo-400 font-medium font-mono">今日已過 45%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 經典 7 段式 LCD 電子數位時鐘 (如圖所示：帶淡灰色 88:88 背景透視，純白發光前字) -->
+        <div class="my-auto py-2 flex flex-col items-center justify-center">
+          <div class="relative inline-block lcd-seven-segment text-5xl sm:text-6xl md:text-7xl font-bold leading-none select-none">
+            <!-- 底層：未發光的淡灰色段數 88:88 (完全還原圖片中 LCD 液晶段底效果) -->
+            <div class="lcd-ghost tracking-widest" aria-hidden="true">88:88</div>
+            <!-- 頂層：真實點亮的亮白時間 -->
+            <div id="clock-hm" class="absolute inset-0 lcd-active tracking-widest flex items-center justify-center">08:42</div>
+          </div>
+          <!-- 當天進度條 -->
+          <div class="w-full bg-zinc-800 h-1.5 rounded-full mt-4 overflow-hidden border border-zinc-700/60">
+            <div id="day-progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-500 h-full w-1/2 transition-all duration-1000 rounded-full"></div>
+          </div>
+        </div>
+
+        <!-- 底部微天氣與備忘 -->
+        <div class="pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+          <div class="flex items-center gap-1.5">
+            <i data-lucide="sun" class="w-4 h-4 text-amber-400"></i>
+            <span id="weather-brief" class="text-zinc-200 font-medium">天氣晴朗 24°C</span>
+          </div>
+          <span class="text-[11px] text-zinc-400 font-mono" id="time-timezone">GMT+8 澳門 (Macau)</span>
+        </div>
+      </section>
+
+      <!-- ================= 2. 中間：iPhone 日曆當天行程 ================= -->
+      <section class="col-span-4 white-frame-panel rounded-2xl p-3.5 flex flex-col relative overflow-hidden">
+        <div class="flex items-center justify-between pb-2 border-b border-zinc-800">
+          <div class="flex items-center gap-1.5">
+            <div class="w-6 h-6 rounded-lg bg-indigo-950/80 border border-indigo-400/60 flex items-center justify-center text-indigo-400">
+              <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+            </div>
+            <h2 class="text-sm font-bold text-white tracking-wide">今日行程</h2>
+          </div>
+          <span id="event-count-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-950/80 border border-indigo-500/50 text-indigo-300 font-semibold">0 個事項</span>
+        </div>
+
+        <!-- 行程列表 -->
+        <div id="calendar-event-list" class="flex-1 overflow-y-auto no-scrollbar space-y-2 py-2 pr-0.5">
+          <!-- 行程項目由 JS 渲染 -->
+        </div>
+
+        <!-- 底部日曆同步資訊 -->
+        <div class="pt-2 border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-400">
+          <span id="cal-sync-status" class="truncate max-w-[130px] text-zinc-400">未連線</span>
+          <button onclick="refreshCalendarData(true)" class="hover:text-white transition flex items-center gap-1 text-[10px] text-zinc-200 bg-zinc-900 border border-zinc-700 px-2 py-0.5 rounded shadow-sm hover:border-white">
+            <i data-lucide="refresh-cw" class="w-2.5 h-2.5 text-indigo-400"></i>
+            <span>同步</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ================= 3. 右側：澳門實時天氣看板 (100% 真實數據) ================= -->
+      <section class="col-span-4 white-frame-panel rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden">
+        <!-- 頂部標題 -->
+        <div class="flex items-center justify-between pb-2 border-b border-zinc-800">
+          <div class="flex items-center gap-1.5">
+            <div class="w-6 h-6 rounded-lg bg-sky-950/80 border border-sky-400/60 flex items-center justify-center text-sky-400">
+              <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i>
+            </div>
+            <h2 class="text-sm font-bold text-white tracking-wide">澳門實時天氣</h2>
+          </div>
+          
+          <div class="flex items-center gap-1.5">
+            <span id="weather-update-time" class="text-[10px] text-zinc-400 font-mono">載入中...</span>
+            <button onclick="fetchMacauWeather(true)" title="立即更新" class="text-zinc-400 hover:text-sky-300 transition p-1 hover:bg-zinc-800 rounded-md">
+              <i data-lucide="rotate-cw" class="w-3 h-3"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 即時主要氣溫與天氣圖示 -->
+        <div class="my-auto py-1">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-baseline gap-1">
+              <span id="macau-temp" class="text-4xl sm:text-5xl font-black text-white tracking-tight">--</span>
+              <span class="text-xl font-bold text-sky-400">°C</span>
+            </div>
+            <div class="flex flex-col items-end">
+              <div id="macau-weather-icon-box" class="text-amber-400">
+                <i data-lucide="sun" class="w-8 h-8"></i>
+              </div>
+              <span id="macau-weather-desc" class="text-xs font-bold text-zinc-200 mt-0.5">天氣獲取中</span>
+            </div>
+          </div>
+
+          <!-- 4 格指標 (體感、濕度、紫外線、降雨/風速) -->
+          <div class="grid grid-cols-2 gap-2 mt-2.5">
+            <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-2 flex items-center gap-2">
+              <i data-lucide="thermometer" class="w-4 h-4 text-rose-400 flex-shrink-0"></i>
+              <div class="truncate">
+                <div class="text-[10px] text-zinc-400 leading-none">體感溫度</div>
+                <div id="macau-apparent-temp" class="text-xs font-bold text-white mt-1">--°C</div>
+              </div>
+            </div>
+
+            <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-2 flex items-center gap-2">
+              <i data-lucide="droplets" class="w-4 h-4 text-sky-400 flex-shrink-0"></i>
+              <div class="truncate">
+                <div class="text-[10px] text-zinc-400 leading-none">相對濕度</div>
+                <div id="macau-humidity" class="text-xs font-bold text-white mt-1">--%</div>
+              </div>
+            </div>
+
+            <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-2 flex items-center gap-2">
+              <i data-lucide="sun-medium" class="w-4 h-4 text-amber-400 flex-shrink-0"></i>
+              <div class="truncate">
+                <div class="text-[10px] text-zinc-400 leading-none">紫外線指數</div>
+                <div id="macau-uv" class="text-xs font-bold text-white mt-1">--</div>
+              </div>
+            </div>
+
+            <div class="bg-zinc-900/90 border border-zinc-800 rounded-xl p-2 flex items-center gap-2">
+              <i data-lucide="wind" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+              <div class="truncate">
+                <div class="text-[10px] text-zinc-400 leading-none">風速 / 風向</div>
+                <div id="macau-wind" class="text-xs font-bold text-white mt-1">-- km/h</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 未來 4 小時氣溫趨勢 mini 橫條 -->
+        <div class="pt-2 border-t border-zinc-800">
+          <div class="text-[10px] text-zinc-400 font-semibold mb-1 flex items-center justify-between">
+            <span>今日稍後趨勢</span>
+            <span id="macau-temp-range" class="text-zinc-300 font-mono">--° / --°</span>
+          </div>
+          <div id="macau-hourly-container" class="grid grid-cols-4 gap-1.5 text-center">
+            <!-- 由 JS 動態填入未來 4 個小時 -->
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ================= 設定彈窗 (深色底配白邊框) ================= -->
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#121217] border-2 border-white w-full max-w-lg rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar text-zinc-200">
+      
+      <div class="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4">
+        <div class="flex items-center gap-2">
+          <i data-lucide="sliders" class="w-5 h-5 text-indigo-400"></i>
+          <h3 class="font-bold text-base text-white">自訂設定</h3>
+        </div>
+        <button onclick="closeSettings()" class="text-zinc-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- 日曆來源設定 -->
+      <div class="space-y-4 text-xs">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block font-semibold text-zinc-200">
+              iPhone 行程來源設定
+            </label>
+            <div class="flex gap-1 bg-zinc-800 p-0.5 rounded-lg border border-zinc-700">
+              <button type="button" onclick="switchCalMode('custom')" id="cal-mode-custom-btn" class="px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-600 text-white transition">
+                手動 / 自訂行程
+              </button>
+              <button type="button" onclick="switchCalMode('url')" id="cal-mode-url-btn" class="px-2 py-0.5 rounded text-[11px] font-medium text-zinc-400 hover:text-white transition">
+                網址訂閱 (.ics)
+              </button>
+            </div>
+          </div>
+
+          <!-- 模式 A：手動新增/管理行程 -->
+          <div id="cal-custom-panel" class="space-y-2 mt-2 bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] text-zinc-300 font-medium">自訂今日行程清單：</span>
+              <button type="button" onclick="addCustomEventRow()" class="text-[10px] bg-indigo-600/80 hover:bg-indigo-600 text-white px-2 py-0.5 rounded flex items-center gap-1">
+                <i data-lucide="plus" class="w-3 h-3"></i> 新增一項
+              </button>
+            </div>
+            <div id="custom-events-container" class="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar">
+              <!-- JS 動態生成自訂行程列 -->
+            </div>
+            <p class="text-[10px] text-zinc-500 leading-tight">
+              💡 直接在上面填寫時間與代辦事項，點儲存即可永久顯示在儀表板中央。
+            </p>
+          </div>
+
+          <!-- 模式 B：iCloud / Google 訂閱網址 -->
+          <div id="cal-url-panel" class="space-y-2 mt-2 hidden bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+            <input id="setting-ical-url" type="text" placeholder="webcal://p01-caldav.icloud.com/... 或 https://.../basic.ics" 
+                   class="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-white transition" />
+            <p class="text-[10px] text-zinc-400 leading-relaxed">
+              貼上 iCloud 公開日曆網址（webcal:// 或 https://），網頁會自動篩選並即時列出「今天」的全部事項。
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+          <button onclick="saveSettings()" class="px-4 py-1.5 rounded-lg text-white font-semibold bg-indigo-600 hover:bg-indigo-500 text-xs shadow-md transition">
+            儲存並套用
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示浮動氣泡 -->
+  <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 border border-white/80 text-white text-xs px-4 py-2 rounded-full shadow-lg opacity-0 pointer-events-none transition-opacity duration-300">
+    設定已儲存
+  </div>
+
+  <!-- ================= 邏輯核心 JavaScript ================= -->
+  <script>
+    const DEFAULT_CONFIG = {
+      icalUrl: '',
+      calMode: 'custom',
+      customEvents: [
+        { time: '09:00 - 10:00', title: '早晨晨會 / 郵件回覆', location: '書房工作區' },
+        { time: '12:30 - 13:30', title: '午餐休息 / 望廈周邊用餐', location: '黑沙環商圈' },
+        { time: '15:30 - 16:30', title: '日常採買 / 散步運動', location: '望廈體育中心' },
+        { time: '19:30 - 21:00', title: '家庭晚餐 & 閱讀時間', location: '客廳' }
+      ]
+    };
+
+    let storedConfig = localStorage.getItem('desk_config_macau_weather_v1');
+    let appConfig = null;
+    try {
+      appConfig = JSON.parse(storedConfig);
+      if (!appConfig || !appConfig.calMode) appConfig = DEFAULT_CONFIG;
+    } catch(e) {
+      appConfig = DEFAULT_CONFIG;
+    }
+
+    function saveConfigToStorage() {
+      localStorage.setItem('desk_config_macau_weather_v1', JSON.stringify(appConfig));
+    }
+
+    /* 氣泡通知 */
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2400);
+    }
+
+    /* ====================================================================
+     * 1. 左側：時鐘、日期與進度條
+     * ==================================================================== */
+    const weekdaysTC = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+
+      document.getElementById('clock-hm').textContent = `${hours}:${minutes}`;
+
+      // 日期與星期
+      const month = now.getMonth() + 1;
+      const day = now.getDate();
+      document.getElementById('date-display').textContent = `${month}月${day}日`;
+      document.getElementById('weekday-display').textContent = weekdaysTC[now.getDay()];
+
+      // 問候語
+      const h = now.getHours();
+      let greeting = '早安';
+      if (h >= 11 && h < 14) greeting = '午安';
+      else if (h >= 14 && h < 18) greeting = '下午好';
+      else if (h >= 18 && h < 23) greeting = '晚安';
+      else if (h >= 23 || h < 5) greeting = '夜深了';
+      document.getElementById('greeting').textContent = greeting;
+
+      // 一日進度百分比
+      const totalSecondsToday = (h * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+      const dayPercent = Math.min(100, Math.round((totalSecondsToday / 86400) * 100));
+      document.getElementById('day-progress-bar').style.width = `${dayPercent}%`;
+      document.getElementById('day-progress-text').textContent = `今日已過 ${dayPercent}%`;
+    }
+
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    /* ====================================================================
+     * 2. 中間：iPhone / iCloud 日曆排程 (嚴格過濾今天事項)
+     * ==================================================================== */
+    function getSampleTodayEvents() {
+      const today = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const curHour = today.getHours();
+
+      return [
+        {
+          id: '1',
+          time: `${pad((curHour + 1) % 24)}:00 - ${pad((curHour + 2) % 24)}:00`,
+          title: '專案排程與事項整理',
+          location: '書房',
+          isNow: true
+        },
+        {
+          id: '2',
+          time: '12:30 - 13:30',
+          title: '午餐時光 / 望廈周邊',
+          location: '望廈商圈',
+          isNow: false
+        },
+        {
+          id: '3',
+          time: '19:00 - 20:30',
+          title: '晚間放鬆 & 閱讀',
+          location: '客廳',
+          isNow: false
+        }
+      ];
+    }
+
+    let parsedCalendarEvents = [];
+
+    function parseIcsDate(rawVal) {
+      if (!rawVal) return null;
+      let val = rawVal.trim();
+      if (val.includes(':')) {
+        val = val.split(':').pop();
+      }
+      
+      const isUtc = val.endsWith('Z');
+      const clean = val.replace('Z', '');
+      
+      const year = parseInt(clean.substring(0, 4), 10);
+      const month = parseInt(clean.substring(4, 6), 10) - 1;
+      const day = parseInt(clean.substring(6, 8), 10);
+      
+      if (!clean.includes('T')) {
+        return { date: new Date(year, month, day), isAllDay: true };
+      }
+      
+      const hour = parseInt(clean.substring(9, 11), 10) || 0;
+      const min = parseInt(clean.substring(11, 13), 10) || 0;
+      const sec = parseInt(clean.substring(13, 15), 10) || 0;
+      
+      if (isUtc) {
+        return { date: new Date(Date.UTC(year, month, day, hour, min, sec)), isAllDay: false };
+      } else {
+        return { date: new Date(year, month, day, hour, min, sec), isAllDay: false };
+      }
+    }
+
+    function isDateToday(targetDate, today) {
+      return targetDate.getFullYear() === today.getFullYear() &&
+             targetDate.getMonth() === today.getMonth() &&
+             targetDate.getDate() === today.getDate();
+    }
+
+    function parseICS(icsData) {
+      const lines = icsData.split(/\r\n|\n|\r/);
+      const today = new Date();
+      const todayEvents = [];
+      let inEvent = false;
+      let currentEvent = {};
+
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        while (i + 1 < lines.length && (lines[i + 1].startsWith(' ') || lines[i + 1].startsWith('\t'))) {
+          line += lines[i + 1].substring(1);
+          i++;
+        }
+
+        if (line.startsWith('BEGIN:VEVENT')) {
+          inEvent = true;
+          currentEvent = { title: '', location: '', isAllDay: false };
+        } else if (line.startsWith('END:VEVENT')) {
+          inEvent = false;
+          if (currentEvent.title && currentEvent.startDate) {
+            let matchesToday = false;
+            if (isDateToday(currentEvent.startDate, today)) {
+              matchesToday = true;
+            } else if (currentEvent.endDate && currentEvent.startDate < today && currentEvent.endDate >= today) {
+              matchesToday = true;
+            }
+
+            if (!matchesToday && currentEvent.rrule) {
+              const rule = currentEvent.rrule;
+              if (currentEvent.startDate <= today) {
+                if (rule.includes('FREQ=DAILY')) {
+                  matchesToday = true;
+                } else if (rule.includes('FREQ=WEEKLY')) {
+                  const currentDay = today.getDay();
+                  const daysMap = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+                  if (rule.includes('BYDAY=')) {
+                    if (rule.includes(daysMap[currentDay])) matchesToday = true;
+                  } else if (currentEvent.startDate.getDay() === currentDay) {
+                    matchesToday = true;
+                  }
+                }
+              }
+            }
+
+            if (matchesToday) {
+              let timeStr = '全天事項';
+              if (!currentEvent.isAllDay) {
+                const sHours = String(currentEvent.startDate.getHours()).padStart(2, '0');
+                const sMins = String(currentEvent.startDate.getMinutes()).padStart(2, '0');
+                if (currentEvent.endDate && !currentEvent.endDateIsAllDay) {
+                  const eHours = String(currentEvent.endDate.getHours()).padStart(2, '0');
+                  const eMins = String(currentEvent.endDate.getMinutes()).padStart(2, '0');
+                  timeStr = `${sHours}:${sMins} - ${eHours}:${eMins}`;
+                } else {
+                  timeStr = `${sHours}:${sMins}`;
+                }
+              }
+
+              todayEvents.push({
+                id: currentEvent.uid || String(Math.random()),
+                title: currentEvent.title,
+                location: currentEvent.location,
+                time: timeStr,
+                rawDate: currentEvent.startDate,
+                isAllDay: currentEvent.isAllDay
+              });
+            }
+          }
+        } else if (inEvent) {
+          if (line.startsWith('SUMMARY:')) {
+            currentEvent.title = line.substring(8).replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/g, ' ').trim();
+          } else if (line.startsWith('LOCATION:')) {
+            currentEvent.location = line.substring(9).replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/g, ' ').trim();
+          } else if (line.startsWith('RRULE:')) {
+            currentEvent.rrule = line.substring(6).trim();
+          } else if (line.startsWith('UID:')) {
+            currentEvent.uid = line.substring(4).trim();
+          } else if (line.startsWith('DTSTART')) {
+            const parsed = parseIcsDate(line);
+            if (parsed) {
+              currentEvent.startDate = parsed.date;
+              currentEvent.isAllDay = parsed.isAllDay;
+            }
+          } else if (line.startsWith('DTEND')) {
+            const parsed = parseIcsDate(line);
+            if (parsed) {
+              currentEvent.endDate = parsed.date;
+              currentEvent.endDateIsAllDay = parsed.isAllDay;
+            }
+          }
+        }
+      }
+
+      todayEvents.sort((a, b) => {
+        if (a.isAllDay && !b.isAllDay) return -1;
+        if (!a.isAllDay && b.isAllDay) return 1;
+        return a.rawDate - b.rawDate;
+      });
+
+      return todayEvents;
+    }
+
+    function normalizeICloudUrl(rawUrl) {
+      let url = rawUrl.trim();
+      if (url.startsWith('webcal://')) {
+        url = 'https://' + url.slice(9);
+      } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+      return url;
+    }
+
+    async function fetchCalendarICS(rawUrl) {
+      const targetUrl = normalizeICloudUrl(rawUrl);
+      const encodedTarget = encodeURIComponent(targetUrl);
+
+      const proxyList = [
+        `https://corsproxy.io/?url=${encodedTarget}`,
+        `https://api.allorigins.win/raw?url=${encodedTarget}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodedTarget}`
+      ];
+
+      let lastError = null;
+      for (const proxyUrl of proxyList) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const res = await fetch(proxyUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (res.ok) {
+            const text = await res.text();
+            if (text.includes('BEGIN:VCALENDAR')) {
+              return text;
+            }
+          }
+        } catch (e) {
+          lastError = e;
+        }
+      }
+      throw lastError || new Error('無法從代理伺服器獲取日曆資料');
+    }
+
+    async function refreshCalendarData(isManual = false) {
+      const statusEl = document.getElementById('cal-sync-status');
+      statusEl.textContent = '更新中...';
+
+      if (appConfig.calMode === 'custom' && appConfig.customEvents && appConfig.customEvents.length > 0) {
+        parsedCalendarEvents = appConfig.customEvents.map((ev, idx) => ({
+          id: String(idx + 1),
+          time: ev.time || '即將進行',
+          title: ev.title || '無標題事項',
+          location: ev.location || '待辦事項',
+          isNow: idx === 0
+        }));
+        renderCalendarEvents(parsedCalendarEvents);
+        statusEl.textContent = `自訂行程 (${parsedCalendarEvents.length} 項)`;
+        if (isManual) showToast('已更新自訂行程');
+        return;
+      }
+
+      if (appConfig.calMode === 'url' && appConfig.icalUrl && appConfig.icalUrl.trim().length > 10) {
+        try {
+          const icsText = await fetchCalendarICS(appConfig.icalUrl);
+          const parsed = parseICS(icsText);
+          parsedCalendarEvents = parsed;
+          renderCalendarEvents(parsedCalendarEvents);
+          
+          if (parsed && parsed.length > 0) {
+            statusEl.textContent = `今日 ${parsed.length} 項事項`;
+            if (isManual) showToast(`今日有 ${parsed.length} 個行程！`);
+          } else {
+            statusEl.textContent = '今日無排定行程';
+            if (isManual) showToast('今日無排定行程');
+          }
+          return;
+        } catch (err) {
+          statusEl.textContent = '同步失敗 (點設定檢查)';
+          if (isManual) showToast('同步失敗：請檢查網址或切換手動模式');
+        }
+      }
+
+      parsedCalendarEvents = getSampleTodayEvents();
+      renderCalendarEvents(parsedCalendarEvents);
+      statusEl.textContent = '示範行程 (可在設定編輯)';
+    }
+
+    function switchCalMode(mode) {
+      appConfig.calMode = mode;
+      const customBtn = document.getElementById('cal-mode-custom-btn');
+      const urlBtn = document.getElementById('cal-mode-url-btn');
+      const customPanel = document.getElementById('cal-custom-panel');
+      const urlPanel = document.getElementById('cal-url-panel');
+
+      if (mode === 'custom') {
+        customBtn.className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-600 text-white transition';
+        urlBtn.className = 'px-2 py-0.5 rounded text-[11px] font-medium text-zinc-400 hover:text-white transition';
+        customPanel.classList.remove('hidden');
+        urlPanel.classList.add('hidden');
+      } else {
+        urlBtn.className = 'px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-600 text-white transition';
+        customBtn.className = 'px-2 py-0.5 rounded text-[11px] font-medium text-zinc-400 hover:text-white transition';
+        urlPanel.classList.remove('hidden');
+        customPanel.classList.add('hidden');
+      }
+    }
+
+    function renderCustomEventsInputs() {
+      const container = document.getElementById('custom-events-container');
+      if (!container) return;
+
+      const events = appConfig.customEvents || [];
+      if (events.length === 0) {
+        container.innerHTML = '<div class="text-[10px] text-zinc-500 py-2 text-center">目前沒有自訂行程，點擊「新增一項」填寫！</div>';
+        return;
+      }
+
+      container.innerHTML = events.map((ev, idx) => `
+        <div class="flex items-center gap-1.5 bg-zinc-900 p-1.5 rounded-lg border border-zinc-800">
+          <input type="text" placeholder="時間 (如 10:00)" value="${(ev.time || '').replace(/"/g, '&quot;')}" 
+                 id="cust-time-${idx}" class="w-24 bg-zinc-950 border border-zinc-700 rounded px-1.5 py-0.5 text-[11px] text-white focus:outline-none focus:border-indigo-400" />
+          <input type="text" placeholder="事項名稱" value="${(ev.title || '').replace(/"/g, '&quot;')}" 
+                 id="cust-title-${idx}" class="flex-1 bg-zinc-950 border border-zinc-700 rounded px-1.5 py-0.5 text-[11px] text-white focus:outline-none focus:border-indigo-400" />
+          <input type="text" placeholder="地點/備註" value="${(ev.location || '').replace(/"/g, '&quot;')}" 
+                 id="cust-loc-${idx}" class="w-24 bg-zinc-950 border border-zinc-700 rounded px-1.5 py-0.5 text-[11px] text-white focus:outline-none focus:border-indigo-400" />
+          <button type="button" onclick="removeCustomEventRow(${idx})" class="text-zinc-500 hover:text-red-400 p-1">
+            <i data-lucide="trash-2" class="w-3 h-3"></i>
+          </button>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function addCustomEventRow() {
+      if (!appConfig.customEvents) appConfig.customEvents = [];
+      appConfig.customEvents.push({ time: '12:00', title: '新增事項', location: '澳門' });
+      renderCustomEventsInputs();
+    }
+
+    function removeCustomEventRow(index) {
+      if (!appConfig.customEvents) return;
+      appConfig.customEvents.splice(index, 1);
+      renderCustomEventsInputs();
+    }
+
+    function renderCalendarEvents(events) {
+      const container = document.getElementById('calendar-event-list');
+      const badge = document.getElementById('event-count-badge');
+      badge.textContent = `${events.length} 個事項`;
+
+      if (events.length === 0) {
+        container.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-zinc-500 py-8">
+            <i data-lucide="calendar-check" class="w-8 h-8 stroke-1 mb-1 text-zinc-600"></i>
+            <span class="text-xs text-zinc-400">今天沒有待辦行程！好好享受生活</span>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = events.map((ev, index) => {
+        const isCurrent = index === 0;
+        const cardStyle = isCurrent 
+          ? 'border-l-4 border-l-indigo-400 bg-zinc-900/90 border border-white/60 shadow-md' 
+          : 'border-l-4 border-l-zinc-600 bg-zinc-900/60 border border-zinc-800';
+        return `
+          <div class="p-2.5 rounded-xl ${cardStyle} transition hover:bg-zinc-900 hover:border-white">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-mono font-semibold ${isCurrent ? 'text-indigo-400' : 'text-zinc-400'}">
+                ${ev.time || '即將開始'}
+              </span>
+              ${isCurrent ? '<span class="text-[9px] bg-indigo-950 text-indigo-300 border border-indigo-500/60 px-1.5 py-0.5 rounded font-semibold">進行中</span>' : ''}
+            </div>
+            <div class="text-xs font-bold text-white truncate mt-0.5">${ev.title || '無標題事項'}</div>
+            <div class="flex items-center gap-1 text-[10px] text-zinc-400 mt-1 truncate">
+              <i data-lucide="map-pin" class="w-3 h-3 text-zinc-500 flex-shrink-0"></i>
+              <span class="truncate text-zinc-300">${ev.location || '個人日曆'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    /* ====================================================================
+     * 3. 右側：澳門真實實時天氣 (經緯度: 22.1987, 113.5439 望廈/澳門半島)
+     * ==================================================================== */
+    // WMO Weather Code 解讀對照表
+    function interpretWmoCode(code, isDay = 1) {
+      const codeMap = {
+        0: { text: '晴朗', icon: isDay ? 'sun' : 'moon', color: 'text-amber-400' },
+        1: { text: '大部晴朗', icon: isDay ? 'sun-medium' : 'moon', color: 'text-amber-300' },
+        2: { text: '多雲', icon: 'cloud-sun', color: 'text-sky-300' },
+        3: { text: '陰天', icon: 'cloud', color: 'text-zinc-400' },
+        45: { text: '有霧', icon: 'cloud-fog', color: 'text-zinc-400' },
+        48: { text: '濃霧', icon: 'cloud-fog', color: 'text-zinc-400' },
+        51: { text: '輕微毛毛雨', icon: 'cloud-drizzle', color: 'text-sky-400' },
+        53: { text: '毛毛雨', icon: 'cloud-drizzle', color: 'text-sky-400' },
+        55: { text: '密毛毛雨', icon: 'cloud-drizzle', color: 'text-blue-400' },
+        61: { text: '小雨', icon: 'cloud-rain', color: 'text-blue-400' },
+        63: { text: '中雨', icon: 'cloud-rain', color: 'text-blue-400' },
+        65: { text: '大雨', icon: 'cloud-rain', color: 'text-blue-500' },
+        80: { text: '陣雨', icon: 'cloud-sun-rain', color: 'text-sky-400' },
+        81: { text: '中度陣雨', icon: 'cloud-rain', color: 'text-blue-400' },
+        82: { text: '狂暴陣雨', icon: 'cloud-rain-wind', color: 'text-indigo-400' },
+        95: { text: '雷暴', icon: 'cloud-lightning', color: 'text-amber-400' },
+        96: { text: '雷暴伴隨冰雹', icon: 'cloud-lightning', color: 'text-amber-500' }
+      };
+      return codeMap[code] || { text: '多雲', icon: 'cloud-sun', color: 'text-sky-300' };
+    }
+
+    async function fetchMacauWeather(isManual = false) {
+      const updateEl = document.getElementById('weather-update-time');
+      if (isManual) updateEl.textContent = '更新中...';
+
+      // 澳門半島望廈中心坐標 (22.1987, 113.5439)
+      const lat = 22.1987;
+      const lon = 113.5439;
+      const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,uv_index_max&timezone=Asia%2FMacau&forecast_days=2`;
+
+      try {
+        const res = await fetch(apiUrl);
+        if (!res.ok) throw new Error('天氣網路請求異常');
+        const data = await res.json();
+
+        const current = data.current;
+        const daily = data.daily;
+        const hourly = data.hourly;
+
+        // 1. 填入即時核心溫度與狀況
+        const tempRounded = Math.round(current.temperature_2m);
+        document.getElementById('macau-temp').textContent = tempRounded;
+        
+        const wmo = interpretWmoCode(current.weather_code, current.is_day);
+        document.getElementById('macau-weather-desc').textContent = wmo.text;
+        
+        const iconBox = document.getElementById('macau-weather-icon-box');
+        iconBox.className = wmo.color;
+        iconBox.innerHTML = `<i data-lucide="${wmo.icon}" class="w-8 h-8"></i>`;
+
+        // 2. 4 格指標 (體感, 濕度, 紫外線, 風速)
+        document.getElementById('macau-apparent-temp').textContent = `${Math.round(current.apparent_temperature)}°C`;
+        document.getElementById('macau-humidity').textContent = `${current.relative_humidity_2m}%`;
+        const uvVal = daily.uv_index_max && daily.uv_index_max[0] != null ? Math.round(daily.uv_index_max[0]) : '--';
+        document.getElementById('macau-uv').textContent = uvVal;
+        document.getElementById('macau-wind').textContent = `${Math.round(current.wind_speed_10m)} km/h`;
+
+        // 3. 左下角時鐘區的天氣簡報同步更新
+        document.getElementById('weather-brief').textContent = `${wmo.text} ${tempRounded}°C`;
+
+        // 4. 今日最高 / 最低溫
+        if (daily.temperature_2m_max && daily.temperature_2m_min) {
+          const tMax = Math.round(daily.temperature_2m_max[0]);
+          const tMin = Math.round(daily.temperature_2m_min[0]);
+          document.getElementById('macau-temp-range').textContent = `${tMin}° / ${tMax}°C`;
+        }
+
+        // 5. 未來 4 小時氣溫趨勢
+        const now = new Date();
+        const currentHour = now.getHours();
+        const hourlyBox = document.getElementById('macau-hourly-container');
+        hourlyBox.innerHTML = '';
+
+        for (let i = 1; i <= 4; i++) {
+          const targetIndex = currentHour + i;
+          if (targetIndex < hourly.time.length) {
+            const hTime = `${(currentHour + i) % 24}:00`;
+            const hTemp = Math.round(hourly.temperature_2m[targetIndex]);
+            const hCode = hourly.weather_code[targetIndex];
+            const hInfo = interpretWmoCode(hCode, (currentHour + i >= 6 && currentHour + i < 18) ? 1 : 0);
+            const hRain = hourly.precipitation_probability ? hourly.precipitation_probability[targetIndex] : 0;
+
+            const col = document.createElement('div');
+            col.className = 'bg-zinc-900/60 border border-zinc-800/80 rounded-lg py-1.5 px-0.5 flex flex-col items-center justify-between';
+            col.innerHTML = `
+              <span class="text-[9px] text-zinc-400 font-mono">${hTime}</span>
+              <div class="${hInfo.color} my-0.5">
+                <i data-lucide="${hInfo.icon}" class="w-3.5 h-3.5"></i>
+              </div>
+              <span class="text-[11px] font-bold text-white font-mono">${hTemp}°</span>
+              <span class="text-[8px] text-sky-400">${hRain > 0 ? hRain + '%' : '-'}</span>
+            `;
+            hourlyBox.appendChild(col);
+          }
+        }
+
+        const nowStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        updateEl.textContent = `${nowStr} 已更新`;
+        lucide.createIcons();
+
+        if (isManual) showToast('澳門實時天氣已更新');
+      } catch (err) {
+        console.warn('天氣獲取異常:', err);
+        updateEl.textContent = '獲取失敗';
+        if (isManual) showToast('天氣連線失敗，請稍候再試');
+      }
+    }
+
+    // 每 15 分鐘自動刷新天氣數據
+    setInterval(() => {
+      fetchMacauWeather();
+    }, 15 * 60 * 1000);
+
+    /* ====================================================================
+     * 4. 螢幕防休眠 (Wake Lock API)
+     * ==================================================================== */
+    let wakeLock = null;
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          document.getElementById('screen-wake-status').textContent = '螢幕常亮已啟動';
+          wakeLock.addEventListener('release', () => {
+            document.getElementById('screen-wake-status').textContent = '螢幕待機';
+          });
+        }
+      } catch (err) {
+        document.getElementById('screen-wake-status').textContent = '桌面模式運行中';
+      }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    });
+    document.addEventListener('touchstart', () => {
+      if (!wakeLock) requestWakeLock();
+    }, { once: true });
+
+    /* ====================================================================
+     * 5. 全螢幕控制
+     * ==================================================================== */
+    function requestFullScreen() {
+      const doc = document.documentElement;
+      if (doc.requestFullscreen) {
+        doc.requestFullscreen();
+      } else if (doc.webkitRequestFullscreen) {
+        doc.webkitRequestFullscreen();
+      } else {
+        showToast('提示：點擊 Safari「分享」→「加入主畫面」可獲得最完美無網址列全螢幕體驗');
+      }
+    }
+
+    /* ====================================================================
+     * 6. 設定彈窗操作
+     * ==================================================================== */
+    function openSettings() {
+      document.getElementById('setting-ical-url').value = appConfig.icalUrl || '';
+      switchCalMode(appConfig.calMode || 'custom');
+      renderCustomEventsInputs();
+
+      const modal = document.getElementById('settings-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeSettings() {
+      const modal = document.getElementById('settings-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function saveSettings() {
+      appConfig.icalUrl = document.getElementById('setting-ical-url').value.trim();
+      const isUrlMode = !document.getElementById('cal-url-panel').classList.contains('hidden');
+      appConfig.calMode = isUrlMode ? 'url' : 'custom';
+
+      if (appConfig.customEvents) {
+        const updatedEvents = [];
+        appConfig.customEvents.forEach((_, idx) => {
+          const timeEl = document.getElementById(`cust-time-${idx}`);
+          const titleEl = document.getElementById(`cust-title-${idx}`);
+          const locEl = document.getElementById(`cust-loc-${idx}`);
+          if (titleEl && titleEl.value.trim()) {
+            updatedEvents.push({
+              time: timeEl ? timeEl.value.trim() : '',
+              title: titleEl.value.trim(),
+              location: locEl ? locEl.value.trim() : ''
+            });
+          }
+        });
+        appConfig.customEvents = updatedEvents;
+      }
+
+      saveConfigToStorage();
+      closeSettings();
+      showToast('設定已套用！');
+      refreshCalendarData(true);
+    }
+
+    // 初始化啟動
+    window.addEventListener('load', () => {
+      lucide.createIcons();
+      refreshCalendarData();
+      fetchMacauWeather();
+      requestWakeLock();
+    });
+  </script>
+</body>
+</html>
