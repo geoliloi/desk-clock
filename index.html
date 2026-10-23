@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- 禁止 iOS 強制快取舊網頁，確保每次啟動抓取最新版本 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <!-- iOS Standalone Web App Meta -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -958,6 +962,22 @@
       refreshCalendarData();
       fetchMacauWeather();
       requestWakeLock();
+      
+      // 自動定時同步：每 30 分鐘自動背景更新行事曆，換日跨天自動更新
+      setInterval(() => {
+        refreshCalendarData(false);
+      }, 30 * 60 * 1000);
+      
+      // 換日檢查：每天過午夜 00:00 自動重新抓取當天新行程
+      let lastCheckedDate = new Date().getDate();
+      setInterval(() => {
+        const currentDate = new Date().getDate();
+        if (currentDate !== lastCheckedDate) {
+          lastCheckedDate = currentDate;
+          refreshCalendarData(false);
+          fetchMacauWeather(false);
+        }
+      }, 60 * 1000);
     });
   </script>
 </body>
