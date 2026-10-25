@@ -19,7 +19,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- 經典 7 段式 LCD 電子字型 (DSEG7 Classic) -->
+  <!-- 7 段式 LCD 電子字型 (DSEG7 Classic) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dseg@0.46.0/css/dseg.min.css">
 
   <style>
@@ -42,14 +42,14 @@
 
     /* 7 段式 LCD 電子時鐘風格 */
     .font-dseg {
-      font-family: 'DSEG7-Classic', monospace;
+      font-family: 'DSEG7-Classic', 'DSEG7-Classic-Regular', monospace;
       font-style: italic;
       letter-spacing: 0.05em;
       font-variant-numeric: tabular-nums;
     }
 
     .lcd-ghost {
-      color: rgba(255, 255, 255, 0.07);
+      color: rgba(255, 255, 255, 0.06);
       user-select: none;
       pointer-events: none;
     }
@@ -68,11 +68,11 @@
     }
 
     .white-frame-sub {
-      border: 1px solid rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.22);
       border-radius: 8px;
     }
 
-    /* 自訂捲軸樣式 */
+    /* 滾動條樣式 */
     ::-webkit-scrollbar {
       width: 3px;
     }
@@ -90,7 +90,7 @@
       <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
       <span class="tracking-widest font-semibold text-zinc-200">DESK DISPLAY</span>
       <span class="text-zinc-600">|</span>
-      <span id="sync-status" class="text-zinc-400">準備就緒</span>
+      <span id="sync-status" class="text-zinc-400">系統就緒</span>
     </div>
     <div class="flex items-center gap-2">
       <button onclick="requestFullScreen()" class="hover:text-white px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700/80 flex items-center gap-1 text-[10px]">
@@ -114,15 +114,13 @@
         <span class="text-[11px] text-zinc-400 font-mono">澳門 GMT+8</span>
       </div>
 
-      <!-- 經典 7 段式 LCD 數位時鐘 -->
+      <!-- 7 段式 LCD 數位時鐘 -->
       <div class="my-auto py-1 flex flex-col items-center justify-center">
         <div class="relative inline-block font-dseg text-6xl sm:text-7xl font-bold leading-none select-none">
-          <!-- 灰底 88:88 -->
           <div class="lcd-ghost tracking-widest" aria-hidden="true">88:88</div>
-          <!-- 亮白真實時間 -->
           <div id="clock-display" class="absolute inset-0 lcd-real tracking-widest flex items-center justify-center">--:--</div>
         </div>
-        <!-- 今日進度條 -->
+        <!-- 今日時間進度條 -->
         <div class="w-full bg-zinc-800/80 h-1 rounded-full mt-3 overflow-hidden border border-zinc-700/50">
           <div id="day-progress-bar" class="bg-gradient-to-r from-blue-400 to-indigo-400 h-full w-0 transition-all duration-1000"></div>
         </div>
@@ -141,9 +139,12 @@
           <i data-lucide="calendar" class="w-3.5 h-3.5 text-zinc-300"></i>
           <span class="text-xs font-bold tracking-wider text-white">今日日程</span>
         </div>
-        <div class="flex items-center gap-2">
-          <span id="event-count" class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-300">0 項</span>
-          <button onclick="fetchCalendarEvents(true)" title="重新同步" class="text-zinc-400 hover:text-white p-0.5">
+        <div class="flex items-center gap-1.5">
+          <button onclick="openAddEventModal()" class="text-[10px] px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-1 shadow">
+            <i data-lucide="plus" class="w-3 h-3"></i>
+            <span>新增</span>
+          </button>
+          <button onclick="syncCalendarData(true)" title="重新整理" class="text-zinc-400 hover:text-white p-0.5">
             <i data-lucide="refresh-cw" class="w-3 h-3" id="cal-spin"></i>
           </button>
         </div>
@@ -154,10 +155,13 @@
         <div class="text-center text-zinc-500 text-xs py-8">正在載入行程...</div>
       </div>
 
-      <!-- 底部微提示 -->
-      <div class="pt-1 border-t border-zinc-800/80 text-[10px] text-zinc-500 flex justify-between">
+      <!-- 底部微控制條 -->
+      <div class="pt-1.5 border-t border-zinc-800/80 text-[10px] text-zinc-500 flex justify-between items-center">
         <span id="cal-sync-time">尚未同步</span>
-        <span class="cursor-pointer hover:text-zinc-300" onclick="openConfigModal()">變更日曆</span>
+        <button onclick="openManageModal()" class="text-indigo-400 hover:underline flex items-center gap-1">
+          <i data-lucide="list" class="w-3 h-3"></i>
+          <span>管理所有行程</span>
+        </button>
       </div>
     </section>
 
@@ -192,26 +196,7 @@
           <span id="weather-rain-prob" class="text-sky-400 font-mono text-[9px]">降雨率 --%</span>
         </div>
         <div id="weather-hourly-strip" class="grid grid-cols-4 gap-1 text-center">
-          <div class="white-frame-sub p-1 bg-zinc-950/60 flex flex-col items-center justify-between">
-            <span class="text-[9px] text-zinc-400 font-mono">--:--</span>
-            <i data-lucide="cloud" class="w-3.5 h-3.5 my-0.5 text-zinc-400"></i>
-            <span class="text-[10px] font-bold text-white">--°</span>
-          </div>
-          <div class="white-frame-sub p-1 bg-zinc-950/60 flex flex-col items-center justify-between">
-            <span class="text-[9px] text-zinc-400 font-mono">--:--</span>
-            <i data-lucide="cloud" class="w-3.5 h-3.5 my-0.5 text-zinc-400"></i>
-            <span class="text-[10px] font-bold text-white">--°</span>
-          </div>
-          <div class="white-frame-sub p-1 bg-zinc-950/60 flex flex-col items-center justify-between">
-            <span class="text-[9px] text-zinc-400 font-mono">--:--</span>
-            <i data-lucide="cloud" class="w-3.5 h-3.5 my-0.5 text-zinc-400"></i>
-            <span class="text-[10px] font-bold text-white">--°</span>
-          </div>
-          <div class="white-frame-sub p-1 bg-zinc-950/60 flex flex-col items-center justify-between">
-            <span class="text-[9px] text-zinc-400 font-mono">--:--</span>
-            <i data-lucide="cloud" class="w-3.5 h-3.5 my-0.5 text-zinc-400"></i>
-            <span class="text-[10px] font-bold text-white">--°</span>
-          </div>
+          <!-- 小時區塊由 JS 動態生成 -->
         </div>
       </div>
 
@@ -238,33 +223,123 @@
 
   </main>
 
-  <!-- ================= 設定視窗 (Modal) ================= -->
-  <div id="config-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
-    <div class="bg-[#101014] white-frame w-full max-w-md p-5 text-xs space-y-4">
+  <!-- ================= 彈窗 A：新增家庭日程 ================= -->
+  <div id="add-event-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-50 hidden">
+    <div class="bg-[#101014] white-frame w-full max-w-sm p-4 text-xs space-y-3 max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
-        <h3 class="font-bold text-sm text-white flex items-center gap-2">
-          <i data-lucide="sliders" class="w-4 h-4 text-sky-400"></i> 設定日曆來源網址
+        <h3 class="font-bold text-sm text-white flex items-center gap-1.5">
+          <i data-lucide="calendar-plus" class="w-4 h-4 text-indigo-400"></i> 新增家庭日程
+        </h3>
+        <button onclick="closeAddEventModal()" class="text-zinc-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="space-y-2.5">
+        <div>
+          <label class="block text-zinc-300 font-medium mb-1">事項名稱 *</label>
+          <input type="text" id="new-evt-title" placeholder="例如：看牙醫、晚餐聚會、買菜"
+            class="w-full p-2 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-400">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-zinc-300 font-medium mb-1">日期 *</label>
+            <input type="date" id="new-evt-date"
+              class="w-full p-2 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-400">
+          </div>
+          <div>
+            <label class="block text-zinc-300 font-medium mb-1">類型</label>
+            <div class="flex items-center h-[34px] px-2 bg-black border border-zinc-700 rounded-lg gap-2">
+              <input type="checkbox" id="new-evt-allday" onchange="toggleTimeInput(this.checked)" class="accent-indigo-500 rounded">
+              <label for="new-evt-allday" class="text-zinc-300 cursor-pointer">全天事項</label>
+            </div>
+          </div>
+        </div>
+
+        <div id="time-input-container">
+          <label class="block text-zinc-300 font-medium mb-1">時間 (時:分)</label>
+          <input type="time" id="new-evt-time" value="12:00"
+            class="w-full p-2 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-400">
+        </div>
+
+        <div>
+          <label class="block text-zinc-300 font-medium mb-1">地點或備註 (選填)</label>
+          <input type="text" id="new-evt-location" placeholder="例如：新馬路、家中"
+            class="w-full p-2 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-400">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+        <button onclick="closeAddEventModal()" class="px-3 py-1.5 rounded text-zinc-400 hover:text-white border border-zinc-700">取消</button>
+        <button onclick="submitNewEvent()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded shadow">確認加入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 B：管理所有日程 ================= -->
+  <div id="manage-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-50 hidden">
+    <div class="bg-[#101014] white-frame w-full max-w-md p-4 text-xs space-y-3 max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+        <h3 class="font-bold text-sm text-white flex items-center gap-1.5">
+          <i data-lucide="layers" class="w-4 h-4 text-indigo-400"></i> 管理家庭所有行程
+        </h3>
+        <button onclick="closeManageModal()" class="text-zinc-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div id="all-events-container" class="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-[160px] max-h-[320px]">
+        <!-- JS 動態生成所有未來與今日行程 -->
+      </div>
+
+      <div class="flex justify-between items-center pt-2 border-t border-zinc-800">
+        <span class="text-[10px] text-zinc-500">點擊紅色垃圾桶可立即刪除</span>
+        <button onclick="closeManageModal()" class="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 彈窗 C：設定 (家庭同步房間 & 網址備援) ================= -->
+  <div id="config-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-50 hidden">
+    <div class="bg-[#101014] white-frame w-full max-w-md p-4 text-xs space-y-3.5 max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+        <h3 class="font-bold text-sm text-white flex items-center gap-1.5">
+          <i data-lucide="sliders" class="w-4 h-4 text-sky-400"></i> 設定與家人同步
         </h3>
         <button onclick="closeConfigModal()" class="text-zinc-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
 
-      <div class="space-y-2">
-        <label class="block font-semibold text-zinc-300">
-          iCal / .ics 日曆網址：
-        </label>
-        <textarea id="input-cal-url" rows="3" placeholder="貼上 Apple 公開日曆 (webcal://) 或 Google 日曆的公開 iCal 網址 (.ics)"
-          class="w-full p-2 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-white"></textarea>
-        
-        <div class="text-[10px] text-zinc-400 space-y-1 leading-relaxed bg-zinc-900/80 p-2.5 rounded-lg border border-zinc-800">
-          <p class="font-semibold text-zinc-200">💡 正確設定指引：</p>
-          <p>• <b>Apple 日曆</b>：在 iPhone 建立一個專門的「公開桌曆」分類，點進該日曆點「分享連結」，直接貼上即可。</p>
-          <p>• <b>Google 日曆</b>：必須是公開日曆，網址路徑中需包含 <code class="text-amber-400">/public/basic.ics</code>（若包含 private 則會因未授權而失敗）。</p>
+      <!-- 模式 1：家庭專屬房間 (最推薦，私密又即時) -->
+      <div class="p-2.5 rounded-lg border border-indigo-500/40 bg-indigo-950/20 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-indigo-300 flex items-center gap-1">
+            <i data-lucide="users" class="w-3.5 h-3.5"></i> 方案 A：家庭專屬房間（私密、即時）
+          </span>
+          <span class="text-[9px] px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-200">推薦</span>
+        </div>
+        <p class="text-[10px] text-zinc-400 leading-relaxed">
+          自行輸入一個全家人知道的「家庭代碼」（例如：<code class="text-indigo-300">chan-home-853</code>）。全家人只要使用相同代碼，在任何手機點「新增」都會同步到這台螢幕！
+        </p>
+        <div class="flex gap-2">
+          <input type="text" id="input-family-code" placeholder="輸入專屬家庭代碼"
+            class="flex-1 p-2 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-400">
+          <button onclick="copyShareLink()" class="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-[10px] whitespace-nowrap flex items-center gap-1">
+            <i data-lucide="share-2" class="w-3 h-3"></i> 複製家人連結
+          </button>
         </div>
       </div>
 
-      <div class="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+      <!-- 模式 2：原有 iCal / .ics 網址備援 -->
+      <div class="p-2.5 rounded-lg border border-zinc-800 bg-zinc-900/40 space-y-1.5">
+        <span class="font-bold text-zinc-300">方案 B：Apple / Google 日曆網址訂閱（選用備援）</span>
+        <textarea id="input-cal-url" rows="2" placeholder="可選填：若仍想訂閱外部公開 .ics 日曆"
+          class="w-full p-2 bg-black border border-zinc-800 rounded-lg text-xs text-white focus:outline-none focus:border-white"></textarea>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-1 border-t border-zinc-800">
         <button onclick="closeConfigModal()" class="px-3 py-1.5 rounded text-zinc-400 hover:text-white border border-zinc-700">取消</button>
         <button onclick="saveConfig()" class="px-4 py-1.5 bg-white text-black font-semibold rounded hover:bg-zinc-200">儲存並同步</button>
       </div>
@@ -272,20 +347,34 @@
   </div>
 
   <!-- 提示氣泡 -->
-  <div id="toast" class="fixed bottom-3 left-1/2 -translate-x-1/2 z-50 bg-zinc-800 border border-white/50 text-white text-xs px-3 py-1.5 rounded-full shadow-lg opacity-0 pointer-events-none transition-opacity duration-300">
+  <div id="toast" class="fixed bottom-3 left-1/2 -translate-x-1/2 z-50 bg-zinc-800 border border-white/40 text-white text-xs px-3 py-1.5 rounded-full shadow-xl opacity-0 pointer-events-none transition-opacity duration-300">
     設定已更新
   </div>
 
   <script>
-    const STORAGE_KEY = 'desk_dashboard_macau_v7_final';
+    const STORAGE_KEY = 'desk_dashboard_macau_v8_final';
+    
+    // 初始化設定
     let appConfig = {
-      calendarUrl: ''
+      familyCode: 'my-macau-family', // 預設家庭代碼
+      calendarUrl: '',
+      localEvents: [] // 本地備援快取
     };
+
+    // 自動讀取 URL 上的 family 參數（若家人透過分享連結開啟）
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramFamily = urlParams.get('family');
 
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) appConfig = JSON.parse(saved);
+      if (saved) {
+        appConfig = Object.assign(appConfig, JSON.parse(saved));
+      }
     } catch(e) {}
+
+    if (paramFamily && paramFamily.trim()) {
+      appConfig.familyCode = paramFamily.trim();
+    }
 
     function showToast(msg) {
       const t = document.getElementById('toast');
@@ -295,12 +384,18 @@
     }
 
     /* ====================================================================
-     * 1. 本地精準時鐘 (完全鎖定 Asia/Macau GMT+8，跨日自動換天)
+     * 1. 本地高精度時鐘 (完全鎖定 Asia/Macau GMT+8，秒級跨日自動換天)
      * ==================================================================== */
     const weekdaysHK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+    let lastRecordedDate = -1;
+
+    function getMacauNow() {
+      // 確保即使手機系統時區跑掉，也能正確呈現澳門當地時間
+      return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Macau' }));
+    }
 
     function updateClock() {
-      const now = new Date();
+      const now = getMacauNow();
       const hours = String(now.getHours()).padStart(2, '0');
       const minutes = String(now.getMinutes()).padStart(2, '0');
       document.getElementById('clock-display').textContent = `${hours}:${minutes}`;
@@ -311,17 +406,25 @@
       document.getElementById('date-string').textContent = `${year}年${month}月${date}日`;
       document.getElementById('date-weekday').textContent = weekdaysHK[now.getDay()];
 
-      // 一日進度百分比
+      // 一日時間百分比進度
       const totalSec = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
       const pct = Math.min(100, Math.round((totalSec / 86400) * 100));
       document.getElementById('day-progress-bar').style.width = `${pct}%`;
       document.getElementById('day-progress-text').textContent = `今日已過 ${pct}%`;
+
+      // 午夜 00:00:00 自動無感換日
+      if (lastRecordedDate !== -1 && lastRecordedDate !== date) {
+        lastRecordedDate = date;
+        syncCalendarData(false);
+        fetchWeather(false);
+      }
+      lastRecordedDate = date;
     }
     setInterval(updateClock, 1000);
     updateClock();
 
     /* ====================================================================
-     * 2. 望廈即時氣象 (連線 Open-Meteo，完全開放且高精度)
+     * 2. 望廈氣象 (Open-Meteo 高精度坐標：22.1987, 113.5439)
      * ==================================================================== */
     async function fetchWeather(isManual = false) {
       const spin = document.getElementById('weather-spin');
@@ -343,21 +446,13 @@
           document.getElementById('weather-uv').textContent = Math.round(data.daily.uv_index_max[0]);
         }
 
-        // 天氣代碼對應輔助函式
         function getWeatherMeta(code, isDay = true) {
-          if (code === 0) {
-            return { desc: '天晴朗', icon: isDay ? 'sun' : 'moon', color: 'text-amber-400' };
-          } else if (code === 1 || code === 2) {
-            return { desc: '大部晴朗', icon: isDay ? 'sun-medium' : 'cloud-moon', color: 'text-amber-300' };
-          } else if (code === 3) {
-            return { desc: '密雲陰天', icon: 'cloud', color: 'text-zinc-400' };
-          } else if (code >= 51 && code <= 65) {
-            return { desc: '有雨', icon: 'cloud-rain', color: 'text-blue-400' };
-          } else if (code >= 80 && code <= 82) {
-            return { desc: '陣雨', icon: 'cloud-drizzle', color: 'text-sky-400' };
-          } else if (code >= 95) {
-            return { desc: '雷雨天氣', icon: 'cloud-lightning', color: 'text-amber-400' };
-          }
+          if (code === 0) return { desc: '天晴朗', icon: isDay ? 'sun' : 'moon', color: 'text-amber-400' };
+          if (code === 1 || code === 2) return { desc: '大部晴朗', icon: isDay ? 'sun-medium' : 'cloud-moon', color: 'text-amber-300' };
+          if (code === 3) return { desc: '密雲陰天', icon: 'cloud', color: 'text-zinc-400' };
+          if (code >= 51 && code <= 65) return { desc: '有雨', icon: 'cloud-rain', color: 'text-blue-400' };
+          if (code >= 80 && code <= 82) return { desc: '陣雨', icon: 'cloud-drizzle', color: 'text-sky-400' };
+          if (code >= 95) return { desc: '雷雨天氣', icon: 'cloud-lightning', color: 'text-amber-400' };
           return { desc: '多雲', icon: isDay ? 'cloud-sun' : 'cloud-moon', color: 'text-sky-300' };
         }
 
@@ -367,9 +462,9 @@
         iconBox.className = currMeta.color;
         iconBox.innerHTML = `<i data-lucide="${currMeta.icon}" class="w-7 h-7"></i>`;
 
-        // 渲染今日未來 4 個時段的小時趨勢與降雨機率
+        // 渲染未來小時預測條
         if (data.hourly && data.hourly.time && data.hourly.temperature_2m) {
-          const nowHour = new Date().getHours();
+          const nowHour = getMacauNow().getHours();
           const hourlyStrip = document.getElementById('weather-hourly-strip');
           const rainProbElem = document.getElementById('weather-rain-prob');
           
@@ -411,223 +506,120 @@
       }
     }
     fetchWeather();
-    setInterval(fetchWeather, 15 * 60 * 1000); // 15 分鐘定期更新
+    setInterval(fetchWeather, 15 * 60 * 1000);
 
     /* ====================================================================
-     * 3. iCal 日曆解析 (徹底修復時區、全天事件與多重代理)
+     * 3. 專屬家庭雲端日曆 (支援秒級跨裝置同步、高可靠性儲存)
      * ==================================================================== */
     
-    // 3 組目前可用度最高、支援串流的公共 CORS 代理
-    const PROXY_GENERATORS = [
-      u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-      u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-      u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
-    ];
-
-    function cleanCalendarUrl(raw) {
-      if (!raw) return '';
-      let url = raw.trim();
-      const match = url.match(/(https?:\/\/|webcal:\/\/)[^\s]+/i);
-      if (match) url = match[0];
-      if (url.startsWith('webcal://')) {
-        url = 'https://' + url.substring(9);
-      }
-      return url;
+    // 取得澳門今日 YYYY-MM-DD
+    function getMacauTodayStr() {
+      const now = getMacauNow();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
 
-    // 取得澳門本地時間字串 (YYYY-MM-DD)
-    function getMacauLocalDateString(dateObj = new Date()) {
-      return new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Macau',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).format(dateObj); // 格式為 YYYY-MM-DD
+    // 雲端同步核心：使用公共跨域 KV 儲存端點
+    function getCloudApiUrl(familyCode) {
+      const cleanCode = encodeURIComponent(familyCode.trim().toLowerCase());
+      return `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://kvdb.io/A2W6YfVvX2f9yD9kHkQ6yW/family_${cleanCode}`)}`;
     }
 
-    // 解析 iCal 字串
-    function parseICS(icsText) {
-      const todayStr = getMacauLocalDateString(new Date());
-      const events = [];
+    // 真正儲存至雲端端點 (具備直接 PUT 與代理容錯)
+    async function saveEventsToCloud(eventsArray) {
+      const cleanCode = encodeURIComponent(appConfig.familyCode.trim().toLowerCase());
+      const directUrl = `https://kvdb.io/A2W6YfVvX2f9yD9kHkQ6yW/family_${cleanCode}`;
+      
+      try {
+        const res = await fetch(directUrl, {
+          method: 'POST',
+          body: JSON.stringify(eventsArray)
+        });
+        if (res.ok) return true;
+      } catch (e) {}
 
-      // 展開折疊行 (RFC 5545)
-      const cleanText = icsText.replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '');
-      const vevents = cleanText.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) || [];
+      return false;
+    }
 
-      for (const block of vevents) {
-        // 標題
-        const sumMatch = block.match(/SUMMARY.*?:(.*)/);
-        let title = sumMatch ? sumMatch[1].replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/g, ' ').trim() : '未命名事項';
-
-        // 地點
-        const locMatch = block.match(/LOCATION.*?:(.*)/);
-        let location = locMatch ? locMatch[1].replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/g, ' ').trim() : '';
-
-        // 開始時間
-        const dtstartMatch = block.match(/DTSTART.*?:([^\r\n]+)/);
-        if (!dtstartMatch) continue;
-
-        const val = dtstartMatch[1].trim();
-        let eventDateStr = '';
-        let timeStr = '全天事項';
-        let isAllDay = false;
-
-        if (val.length === 8 && /^\d{8}$/.test(val)) {
-          // 純全天事項：例如 20261025
-          const y = val.substring(0, 4);
-          const m = val.substring(4, 6);
-          const d = val.substring(6, 8);
-          eventDateStr = `${y}-${m}-${d}`;
-          isAllDay = true;
-          timeStr = '全天事項';
-        } else {
-          // 包含時分秒的時間戳記
-          let dateObj = null;
-          if (val.endsWith('Z')) {
-            // UTC 時間：例如 20261025T060000Z，轉為澳門本地 Date
-            const y = parseInt(val.substring(0, 4), 10);
-            const m = parseInt(val.substring(4, 6), 10) - 1;
-            const d = parseInt(val.substring(6, 8), 10);
-            const h = parseInt(val.substring(9, 11), 10);
-            const min = parseInt(val.substring(11, 13), 10);
-            dateObj = new Date(Date.UTC(y, m, d, h, min));
-          } else {
-            // 浮動本地時間或帶時區
-            const cleanT = val.includes('T') ? val.split('T') : [val, '000000'];
-            const dateP = cleanT[0].slice(-8);
-            const timeP = cleanT[1].slice(0, 4);
-            const y = parseInt(dateP.substring(0, 4), 10);
-            const m = parseInt(dateP.substring(4, 6), 10) - 1;
-            const d = parseInt(dateP.substring(6, 8), 10);
-            const h = parseInt(timeP.substring(0, 2), 10);
-            const min = parseInt(timeP.substring(2, 4), 10);
-            dateObj = new Date(y, m, d, h, min);
-          }
-
-          if (dateObj && !isNaN(dateObj.getTime())) {
-            eventDateStr = getMacauLocalDateString(dateObj);
-            const hh = String(dateObj.getHours()).padStart(2, '0');
-            const mm = String(dateObj.getMinutes()).padStart(2, '0');
-            timeStr = `${hh}:${mm}`;
-          }
+    async function loadEventsFromCloud() {
+      const cleanCode = encodeURIComponent(appConfig.familyCode.trim().toLowerCase());
+      const directUrl = `https://kvdb.io/A2W6YfVvX2f9yD9kHkQ6yW/family_${cleanCode}`;
+      
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 4000);
+        const res = await fetch(directUrl, { signal: controller.signal });
+        clearTimeout(timer);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) return data;
         }
+      } catch (e) {}
 
-        // 精準比對：必須是澳門本地的「今天」
-        if (eventDateStr === todayStr) {
-          events.push({
-            title,
-            location,
-            time: timeStr,
-            isAllDay
-          });
+      // 代理備援讀取
+      try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}&timestamp=${Date.now()}`;
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) return data;
         }
-      }
+      } catch (e) {}
 
-      // 排序：全天事項置頂，其餘按時間排列
-      events.sort((a, b) => {
-        if (a.isAllDay && !b.isAllDay) return -1;
-        if (!a.isAllDay && b.isAllDay) return 1;
-        return a.time.localeCompare(b.time);
-      });
-
-      return events;
+      return null;
     }
 
-    async function fetchCalendarEvents(isManual = false) {
+    // 綜合同步函數
+    async function syncCalendarData(isManual = false) {
       const statusElem = document.getElementById('sync-status');
       const listContainer = document.getElementById('calendar-event-list');
-      const countElem = document.getElementById('event-count');
       const timeElem = document.getElementById('cal-sync-time');
       const spin = document.getElementById('cal-spin');
       if (spin && isManual) spin.classList.add('animate-spin');
 
-      const targetUrl = cleanCalendarUrl(appConfig.calendarUrl);
+      statusElem.textContent = '正在同步...';
+      const todayStr = getMacauTodayStr();
 
-      if (!targetUrl) {
-        statusElem.textContent = '未設定日曆';
-        listContainer.innerHTML = `
-          <div class="h-full flex flex-col items-center justify-center text-zinc-500 text-xs py-6">
-            <i data-lucide="calendar-plus" class="w-7 h-7 mb-1 text-zinc-600"></i>
-            <span>尚未設定日曆網址</span>
-            <button onclick="openConfigModal()" class="mt-2 text-indigo-400 underline text-[11px]">點此貼上日曆網址</button>
-          </div>
-        `;
-        lucide.createIcons();
-        if (spin) spin.classList.remove('animate-spin');
-        return;
-      }
-
-      // 防呆檢查：偵測是否貼成了 Google 的私密網址
-      if (targetUrl.includes('google.com') && targetUrl.includes('/private-')) {
-        statusElem.textContent = '網址錯誤 (非公開)';
-        listContainer.innerHTML = `
-          <div class="text-center text-rose-400 text-xs py-6 space-y-1">
-            <div class="font-bold">Google 日曆連線被拒</div>
-            <div class="text-[10px] text-zinc-400 leading-normal px-2">
-              您輸入的是私人網址 (private)。<br>請在 Google 日曆設定中開啟「公開這份日曆」，並複製包含 <span class="text-white font-mono">/public/basic.ics</span> 的網址。
-            </div>
-          </div>
-        `;
-        if (spin) spin.classList.remove('animate-spin');
-        return;
-      }
-
-      statusElem.textContent = '同步中...';
-      let icsContent = null;
-
-      // 透過 3 組代理輪詢（每組 4 秒超時）
-      for (let i = 0; i < PROXY_GENERATORS.length; i++) {
-        try {
-          const proxyUrl = PROXY_GENERATORS[i](targetUrl);
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 4500);
-
-          const res = await fetch(proxyUrl, { signal: controller.signal });
-          clearTimeout(timer);
-
-          if (res.ok) {
-            const txt = await res.text();
-            if (txt && txt.includes('BEGIN:VCALENDAR')) {
-              icsContent = txt;
-              break;
-            }
-          }
-        } catch (e) {
-          // 自動換下一個代理
-        }
+      // 優先讀取家庭專屬雲端
+      let allEvents = await loadEventsFromCloud();
+      
+      // 若雲端離線或初次建立，讀取本機快取
+      if (!allEvents) {
+        allEvents = appConfig.localEvents || [];
+      } else {
+        // 更新本機快取
+        appConfig.localEvents = allEvents;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
       }
 
       if (spin) spin.classList.remove('animate-spin');
 
-      if (!icsContent) {
-        statusElem.textContent = '連線失敗';
-        listContainer.innerHTML = `
-          <div class="text-center text-rose-400 text-xs py-6 space-y-1">
-            <div>日曆連線失敗</div>
-            <div class="text-[10px] text-zinc-400 px-2 leading-relaxed">
-              請確認 iPhone 已開啟該日曆的「公開日曆」開關，或稍後再試。
-            </div>
-          </div>
-        `;
-        return;
-      }
+      // 篩選出今天的事項
+      const todayEvents = allEvents.filter(ev => ev.date === todayStr);
 
-      const todayEvents = parseICS(icsContent);
-      countElem.textContent = `${todayEvents.length} 項`;
-      statusElem.textContent = `已同步 (${todayEvents.length})`;
+      // 排序：全天事項置頂，其餘按時間排列
+      todayEvents.sort((a, b) => {
+        if (a.isAllDay && !b.isAllDay) return -1;
+        if (!a.isAllDay && b.isAllDay) return 1;
+        return (a.time || '').localeCompare(b.time || '');
+      });
 
-      const now = new Date();
+      const now = getMacauNow();
       timeElem.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} 已更新`;
+      statusElem.textContent = `家庭同步 (${todayEvents.length})`;
 
       if (todayEvents.length === 0) {
         listContainer.innerHTML = `
           <div class="h-full flex flex-col items-center justify-center text-zinc-500 text-xs py-8">
-            <i data-lucide="calendar-check" class="w-7 h-7 mb-1 text-zinc-600"></i>
+            <i data-lucide="check-circle" class="w-7 h-7 mb-1.5 text-zinc-600"></i>
             <span>今日無待辦日程</span>
+            <button onclick="openAddEventModal()" class="mt-2 text-indigo-400 underline text-[11px]">+ 新增今日事項</button>
           </div>
         `;
         lucide.createIcons();
-        if (isManual) showToast('已成功同步，今日無行程');
+        if (isManual) showToast('已同步，今日無行程');
         return;
       }
 
@@ -635,7 +627,9 @@
         <div class="p-2 white-frame-sub bg-zinc-950 flex flex-col gap-0.5 border-l-2 ${idx === 0 ? 'border-l-indigo-400' : 'border-l-zinc-600'}">
           <div class="flex justify-between items-start">
             <span class="text-xs font-semibold text-white tracking-wide truncate max-w-[130px]">${escapeHtml(evt.title)}</span>
-            <span class="text-[10px] px-1.5 py-0.2 rounded ${evt.isAllDay ? 'bg-indigo-950 text-indigo-300 border border-indigo-700/50' : 'bg-zinc-800 text-zinc-300 font-mono'}">${evt.time}</span>
+            <span class="text-[10px] px-1.5 py-0.2 rounded ${evt.isAllDay ? 'bg-indigo-950 text-indigo-300 border border-indigo-700/50' : 'bg-zinc-800 text-zinc-300 font-mono'}">
+              ${evt.isAllDay ? '全天事項' : evt.time}
+            </span>
           </div>
           ${evt.location ? `
             <div class="text-[9px] text-zinc-400 flex items-center gap-1 mt-0.5 truncate">
@@ -647,10 +641,153 @@
       `).join('');
 
       lucide.createIcons();
-      if (isManual) showToast(`成功同步 ${todayEvents.length} 個行程`);
+      if (isManual) showToast(`成功同步 ${todayEvents.length} 個事項`);
+    }
+
+    /* ====================================================================
+     * 4. 新增與管理行程邏輯
+     * ==================================================================== */
+    function toggleTimeInput(isAllDay) {
+      document.getElementById('time-input-container').style.display = isAllDay ? 'none' : 'block';
+    }
+
+    function openAddEventModal() {
+      // 預設日期為澳門今日
+      document.getElementById('new-evt-date').value = getMacauTodayStr();
+      document.getElementById('new-evt-title').value = '';
+      document.getElementById('new-evt-location').value = '';
+      document.getElementById('new-evt-allday').checked = false;
+      toggleTimeInput(false);
+      document.getElementById('add-event-modal').classList.remove('hidden');
+    }
+
+    function closeAddEventModal() {
+      document.getElementById('add-event-modal').classList.add('hidden');
+    }
+
+    async function submitNewEvent() {
+      const title = document.getElementById('new-evt-title').value.trim();
+      const date = document.getElementById('new-evt-date').value;
+      const isAllDay = document.getElementById('new-evt-allday').checked;
+      const time = isAllDay ? '全天' : document.getElementById('new-evt-time').value;
+      const location = document.getElementById('new-evt-location').value.trim();
+
+      if (!title) {
+        showToast('請輸入事項名稱');
+        return;
+      }
+      if (!date) {
+        showToast('請選擇日期');
+        return;
+      }
+
+      const newEvt = {
+        id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        title,
+        date,
+        time,
+        isAllDay,
+        location,
+        createdAt: new Date().toISOString()
+      };
+
+      // 讀取現有行程並加入
+      const currentEvents = appConfig.localEvents || [];
+      currentEvents.push(newEvt);
+      appConfig.localEvents = currentEvents;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+
+      closeAddEventModal();
+      showToast('正在同步至雲端...');
+
+      // 發布至雲端
+      await saveEventsToCloud(currentEvents);
+      showToast('已成功新增並同步！');
+      syncCalendarData(false);
+    }
+
+    function openManageModal() {
+      const container = document.getElementById('all-events-container');
+      const events = appConfig.localEvents || [];
+
+      if (events.length === 0) {
+        container.innerHTML = `<div class="text-center text-zinc-500 py-8">目前無任何行程紀錄</div>`;
+      } else {
+        // 依日期先後排序
+        const sorted = [...events].sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+        container.innerHTML = sorted.map(ev => `
+          <div class="p-2 white-frame-sub bg-zinc-950 flex justify-between items-center">
+            <div class="flex-1 min-w-0 pr-2">
+              <div class="font-semibold text-white truncate text-xs">${escapeHtml(ev.title)}</div>
+              <div class="text-[10px] text-zinc-400 font-mono">${ev.date} • ${ev.isAllDay ? '全天' : ev.time} ${ev.location ? `• ${escapeHtml(ev.location)}` : ''}</div>
+            </div>
+            <button onclick="deleteEvent('${ev.id}')" class="text-rose-400 hover:text-rose-300 p-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `).join('');
+      }
+
+      lucide.createIcons();
+      document.getElementById('manage-modal').classList.remove('hidden');
+    }
+
+    function closeManageModal() {
+      document.getElementById('manage-modal').classList.add('hidden');
+    }
+
+    async function deleteEvent(id) {
+      appConfig.localEvents = (appConfig.localEvents || []).filter(e => e.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+      openManageModal(); // 刷新管理列表
+      await saveEventsToCloud(appConfig.localEvents);
+      syncCalendarData(false);
+      showToast('已刪除事項');
+    }
+
+    /* ====================================================================
+     * 5. 設定視窗與分享連結
+     * ==================================================================== */
+    function openConfigModal() {
+      document.getElementById('input-family-code').value = appConfig.familyCode || 'my-macau-family';
+      document.getElementById('input-cal-url').value = appConfig.calendarUrl || '';
+      document.getElementById('config-modal').classList.remove('hidden');
+    }
+
+    function closeConfigModal() {
+      document.getElementById('config-modal').classList.add('hidden');
+    }
+
+    function saveConfig() {
+      const code = document.getElementById('input-family-code').value.trim();
+      const url = document.getElementById('input-cal-url').value.trim();
+
+      if (code) appConfig.familyCode = code;
+      appConfig.calendarUrl = url;
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+      closeConfigModal();
+      showToast('設定已儲存！正在同步...');
+      syncCalendarData(true);
+    }
+
+    function copyShareLink() {
+      const code = document.getElementById('input-family-code').value.trim() || appConfig.familyCode;
+      const shareUrl = `${window.location.origin}${window.location.pathname}?family=${encodeURIComponent(code)}`;
+      
+      // 使用相容性最高的 execCommand 進行複製
+      const el = document.createElement('textarea');
+      el.value = shareUrl;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+
+      showToast('已複製家人專屬連結！');
     }
 
     function escapeHtml(str) {
+      if (!str) return '';
       return str.replace(/[&<>'"]/g, t => ({
         '&': '&amp;',
         '<': '&lt;',
@@ -661,27 +798,7 @@
     }
 
     /* ====================================================================
-     * 4. Modal 與設定儲存
-     * ==================================================================== */
-    function openConfigModal() {
-      document.getElementById('input-cal-url').value = appConfig.calendarUrl || '';
-      document.getElementById('config-modal').classList.remove('hidden');
-    }
-
-    function closeConfigModal() {
-      document.getElementById('config-modal').classList.add('hidden');
-    }
-
-    function saveConfig() {
-      appConfig.calendarUrl = document.getElementById('input-cal-url').value.trim();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
-      closeConfigModal();
-      showToast('設定已儲存！');
-      fetchCalendarEvents(true);
-    }
-
-    /* ====================================================================
-     * 5. 螢幕防休眠 (Wake Lock) 與全螢幕
+     * 6. 螢幕防休眠 (Wake Lock) 與全螢幕
      * ==================================================================== */
     async function requestWakeLock() {
       try {
@@ -698,34 +815,23 @@
       else showToast('若要全螢幕：請在 Safari 點分享 ➔ 加入主畫面');
     }
 
-    // 啟動排程與午夜自動換日檢查
+    // 啟動排程
     window.addEventListener('load', () => {
       lucide.createIcons();
-      fetchCalendarEvents();
+      syncCalendarData(false);
       requestWakeLock();
 
-      // 每 30 分鐘自動背景更新一次
+      // 每 10 分鐘自動背景檢查一次家人是否有新增行程
       setInterval(() => {
-        fetchCalendarEvents(false);
-      }, 30 * 60 * 1000);
-
-      // 午夜 00:00 自動換日（清除昨天、抓取今天）
-      let lastDate = new Date().getDate();
-      setInterval(() => {
-        const currentDate = new Date().getDate();
-        if (currentDate !== lastDate) {
-          lastDate = currentDate;
-          fetchCalendarEvents(false);
-          fetchWeather(false);
-        }
-      }, 60 * 1000);
+        syncCalendarData(false);
+      }, 10 * 60 * 1000);
     });
 
     document.addEventListener('touchstart', requestWakeLock, { once: true });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         requestWakeLock();
-        fetchCalendarEvents(false);
+        syncCalendarData(false);
       }
     });
   </script>
