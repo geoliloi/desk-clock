@@ -3,18 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>智慧桌曆時鐘 - iPhone 8 Plus 適配版</title>
+  <title>智慧桌曆與家庭遙控中樞</title>
   
-  <!-- 防止快取，確保開啟即為最新版 -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   
-  <!-- 行動裝置全螢幕與狀態列 (支援 iOS 16 Safari「加入主畫面」) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="智慧桌曆">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#030305">
 
   <!-- Tailwind CSS & Lucide Icons -->
@@ -23,6 +20,9 @@
 
   <!-- 7 段式 LCD 電子字型 (DSEG7 Classic) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dseg@0.46.0/css/dseg.min.css">
+  
+  <!-- 跨裝置即時通訊引擎 (MQTT over WebSocket，原生支援跨網路極速推播) -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
   <style>
     * {
@@ -30,6 +30,10 @@
       -webkit-tap-highlight-color: transparent;
       user-select: none;
       -webkit-user-select: none;
+    }
+    input, textarea, select {
+      user-select: auto;
+      -webkit-user-select: auto;
     }
     
     html, body {
@@ -42,7 +46,6 @@
       touch-action: manipulation;
     }
 
-    /* 7 段式 LCD 電子時鐘風格 */
     .font-dseg {
       font-family: 'DSEG7-Classic', 'DSEG7-Classic-Regular', monospace;
       font-style: italic;
@@ -61,9 +64,8 @@
       text-shadow: 0 0 16px rgba(255, 255, 255, 0.7), 0 0 30px rgba(255, 255, 255, 0.3);
     }
 
-    /* 極簡立體黑底白框卡片 */
     .white-frame {
-      border: 1.5px solid rgba(255, 255, 255, 0.8);
+      border: 1.5px solid rgba(255, 255, 255, 0.85);
       border-radius: 12px;
       background: #09090D;
       box-shadow: 0 0 16px rgba(255, 255, 255, 0.03);
@@ -74,7 +76,6 @@
       border-radius: 8px;
     }
 
-    /* 滾動條樣式優化 */
     ::-webkit-scrollbar {
       width: 4px;
     }
@@ -83,7 +84,6 @@
       border-radius: 4px;
     }
 
-    /* iPhone 8 Plus 比例專屬適配模式 (CSS Viewport: 414px x 736px / 16:9) */
     .iphone-8plus-mode {
       max-width: 736px !important;
       max-height: 414px !important;
@@ -110,37 +110,51 @@
 </head>
 <body class="p-2 flex flex-col justify-between min-h-screen w-screen transition-all duration-300" id="main-container">
 
-  <!-- 頂部狀態列與功能按鍵 -->
+  <!-- ================= 頂部狀態列 ================= -->
   <header class="flex justify-between items-center px-1.5 py-1 mb-1.5 border-b border-zinc-800/80 text-[11px] text-zinc-400">
     <div class="flex items-center gap-2">
-      <span id="sync-dot" class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span id="sync-dot" class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
       <span class="tracking-widest font-semibold text-zinc-200">DESK DISPLAY</span>
       <span class="text-zinc-600">|</span>
-      <span id="sync-status" class="text-zinc-400 truncate max-w-[120px] sm:max-w-none">系統就緒</span>
+      <span id="sync-status" class="text-zinc-400 truncate max-w-[140px] sm:max-w-none">正在連線即時中樞...</span>
     </div>
     
     <div class="flex items-center gap-1.5">
-      <!-- iPhone 8 Plus 螢幕大小鎖定/切換按鍵 -->
-      <button onclick="toggleIPhone8PlusMode()" id="btn-ip8-mode" class="px-2 py-0.5 rounded bg-zinc-900 border border-indigo-500/60 text-indigo-300 hover:text-white flex items-center gap-1 text-[10px] transition-colors">
+      <!-- 切換模式：切換「桌曆螢幕」或「手機遙控器」 -->
+      <button onclick="switchViewMode()" id="btn-switch-mode" class="px-2 py-0.5 rounded bg-indigo-600/30 border border-indigo-500/60 text-indigo-300 hover:text-white flex items-center gap-1 text-[10px] transition-colors">
         <i data-lucide="smartphone" class="w-3 h-3 text-indigo-400"></i>
+        <span id="view-mode-text">切換至遙控模式</span>
+      </button>
+
+      <!-- iPhone 8 Plus 比例按鈕 (僅在桌曆視圖時作用) -->
+      <button onclick="toggleIPhone8PlusMode()" id="btn-ip8-mode" class="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700/80 text-zinc-300 hover:text-white flex items-center gap-1 text-[10px] transition-colors">
+        <i data-lucide="aspect-ratio" class="w-3 h-3 text-zinc-400"></i>
         <span id="ip8-mode-text">8 Plus 比例</span>
       </button>
 
-      <button onclick="requestFullScreen()" class="hover:text-white px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700/80 flex items-center gap-1 text-[10px]">
-        <i data-lucide="maximize" class="w-3 h-3 text-zinc-300"></i>
-        <span class="hidden sm:inline">全螢幕</span>
-      </button>
-
-      <button onclick="openConfigModal()" class="hover:text-white px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700/80 flex items-center gap-1 text-[10px]">
-        <i data-lucide="settings" class="w-3 h-3 text-zinc-300"></i>
-        <span>設定</span>
+      <button onclick="openRoomConfigModal()" class="hover:text-white px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700/80 flex items-center gap-1 text-[10px]">
+        <i data-lucide="wifi" class="w-3 h-3 text-zinc-300"></i>
+        <span>配對代碼</span>
       </button>
     </div>
   </header>
 
-  <!-- 主畫面：橫向 3 欄 / 直向自適應堆疊 -->
-  <main class="main-grid grid grid-cols-12 gap-2 flex-1 min-h-0">
+  <!-- ================= 視圖 A：桌曆主螢幕 (iPhone 8 Plus 放置展示) ================= -->
+  <main id="display-view" class="main-grid grid grid-cols-12 gap-2 flex-1 min-h-0">
     
+    <!-- 置頂即時廣播跑馬燈 (若控制端有推播緊急留言) -->
+    <div id="notice-banner" class="col-span-12 white-frame px-3 py-1.5 bg-gradient-to-r from-amber-950/40 via-zinc-900 to-indigo-950/40 border-amber-500/50 flex items-center justify-between text-xs hidden">
+      <div class="flex items-center gap-2 truncate">
+        <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] border border-amber-500/40 flex items-center gap-1 flex-shrink-0">
+          <i data-lucide="bell" class="w-3 h-3"></i> 即時留言
+        </span>
+        <span id="notice-content" class="text-zinc-200 font-medium truncate text-xs">--</span>
+      </div>
+      <button onclick="dismissNotice()" class="text-zinc-400 hover:text-white p-0.5 flex-shrink-0 ml-2">
+        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+
     <!-- 1. 左側：7 段式電子鐘與日期 -->
     <section class="col-span-12 sm:col-span-5 portrait-order-1 white-frame p-2.5 sm:p-3 flex flex-col justify-between items-center text-center relative overflow-hidden min-h-[160px] sm:min-h-0">
       <div class="w-full flex justify-between items-center text-xs text-zinc-400 px-0.5">
@@ -148,13 +162,11 @@
         <span class="text-[10px] text-zinc-400 font-mono">澳門 GMT+8</span>
       </div>
 
-      <!-- 7 段式 LCD 數位時鐘 -->
       <div class="my-auto py-1 flex flex-col items-center justify-center w-full">
         <div class="relative inline-block font-dseg text-5xl sm:text-6xl md:text-7xl font-bold leading-none select-none">
           <div class="lcd-ghost tracking-widest" aria-hidden="true">88:88</div>
           <div id="clock-display" class="absolute inset-0 lcd-real tracking-widest flex items-center justify-center">--:--</div>
         </div>
-        <!-- 今日時間進度條 -->
         <div class="w-4/5 max-w-[260px] bg-zinc-800/80 h-1.5 rounded-full mt-2.5 overflow-hidden border border-zinc-700/50">
           <div id="day-progress-bar" class="bg-gradient-to-r from-blue-400 to-indigo-400 h-full w-0 transition-all duration-1000"></div>
         </div>
@@ -166,7 +178,7 @@
       </div>
     </section>
 
-    <!-- 2. 中間：Google 日曆今日行程 -->
+    <!-- 2. 中間：今日行程列表 (接收遠端手機更新) -->
     <section class="col-span-12 sm:col-span-4 portrait-order-2 white-frame p-2.5 sm:p-3 flex flex-col min-h-[200px] sm:min-h-0 justify-between">
       <div class="flex justify-between items-center pb-1.5 border-b border-zinc-800/80 mb-1">
         <div class="flex items-center gap-1.5">
@@ -174,24 +186,17 @@
           <span class="text-xs font-bold tracking-wider text-white">今日日程</span>
         </div>
         <div class="flex items-center gap-1.5">
-          <button onclick="syncCalendarData(true)" title="重新整理" class="text-zinc-400 hover:text-white p-1">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="cal-spin"></i>
-          </button>
+          <span id="remote-indicator" class="text-[9px] text-emerald-400 font-mono">● 遠端連線</span>
         </div>
       </div>
 
-      <!-- 滾動行程清單 -->
       <div id="calendar-event-list" class="flex-1 overflow-y-auto space-y-1.5 pr-0.5 min-h-[110px] max-h-[240px] sm:max-h-none">
         <div class="text-center text-zinc-500 text-xs py-8">正在載入行程...</div>
       </div>
 
-      <!-- 底部同步時間狀態 -->
       <div class="pt-1 border-t border-zinc-800/80 text-[10px] text-zinc-500 flex justify-between items-center">
-        <span id="cal-sync-time">尚未同步</span>
-        <button onclick="openConfigModal()" class="text-indigo-400 hover:underline flex items-center gap-1">
-          <i data-lucide="link" class="w-3 h-3"></i>
-          <span>日曆連結設定</span>
-        </button>
+        <span id="cal-sync-time">即時待命</span>
+        <span class="text-zinc-400 text-[9px]">用其他手機新增即時跳出</span>
       </div>
     </section>
 
@@ -207,7 +212,6 @@
         </button>
       </div>
 
-      <!-- 即時溫度與天氣狀態 -->
       <div class="my-auto py-1 text-center">
         <div class="flex items-center justify-center gap-1.5">
           <div id="weather-icon-box" class="text-amber-400">
@@ -219,18 +223,14 @@
         <div id="weather-desc" class="text-[11px] sm:text-xs text-zinc-300 font-medium mt-0.5">載入天氣中...</div>
       </div>
 
-      <!-- 未來數小時氣溫走勢 -->
       <div class="pt-1 pb-1 border-t border-zinc-800/80">
         <div class="text-[9px] text-zinc-400 flex justify-between items-center mb-1 px-0.5">
           <span class="font-semibold text-zinc-300">未來走勢</span>
           <span id="weather-rain-prob" class="text-sky-400 font-mono text-[9px]">降雨率 --%</span>
         </div>
-        <div id="weather-hourly-strip" class="grid grid-cols-4 gap-1 text-center">
-          <!-- 小時區塊由 JS 動態生成 -->
-        </div>
+        <div id="weather-hourly-strip" class="grid grid-cols-4 gap-1 text-center"></div>
       </div>
 
-      <!-- 4 格指標 (體感、濕度、紫外線、風速) -->
       <div class="grid grid-cols-2 gap-1 text-center text-[10px] pt-1 border-t border-zinc-800/80">
         <div class="white-frame-sub p-0.5 bg-zinc-950/70">
           <div class="text-zinc-500 text-[8px]">體感</div>
@@ -253,43 +253,145 @@
 
   </main>
 
-  <!-- 彈窗：設定 Google 日曆私密同步 -->
-  <div id="config-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-50 hidden">
-    <div class="bg-[#101014] white-frame w-full max-w-md p-4 text-xs space-y-3.5 max-h-[92vh] overflow-y-auto">
+  <!-- ================= 視圖 B：手機控制台 (給你的主力手機使用) ================= -->
+  <main id="remote-control-view" class="flex-1 flex flex-col gap-3 min-h-0 overflow-y-auto max-w-xl mx-auto w-full p-1 hidden">
+    
+    <!-- 頂部配對提示卡片 -->
+    <div class="white-frame p-3 bg-indigo-950/20 border-indigo-500/40 flex items-center justify-between">
+      <div>
+        <div class="text-xs font-bold text-white flex items-center gap-1.5">
+          <i data-lucide="radio" class="w-4 h-4 text-emerald-400"></i>
+          <span>目前已連線家庭中樞</span>
+        </div>
+        <div class="text-[10px] text-zinc-400 mt-0.5">
+          配對代碼：<span id="remote-current-code" class="text-indigo-300 font-mono font-bold">macau-home</span>
+        </div>
+      </div>
+      <button onclick="openRoomConfigModal()" class="px-2.5 py-1 bg-zinc-900 border border-zinc-700 rounded text-[11px] text-zinc-200 hover:text-white">
+        更改代碼
+      </button>
+    </div>
+
+    <!-- 功能 1：發送即時置頂留言 (iPhone 8 Plus 螢幕會瞬間跳出橫幅) -->
+    <div class="white-frame p-3.5 space-y-2.5">
+      <div class="flex justify-between items-center">
+        <h3 class="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+          <i data-lucide="message-square" class="w-4 h-4"></i> 推播即時留言至 iPhone 8 Plus
+        </h3>
+        <span class="text-[9px] text-zinc-500">螢幕立即跳出</span>
+      </div>
+      <div class="flex gap-2">
+        <input type="text" id="ctrl-notice-input" placeholder="例如：晚上一起吃火鍋 / 記得吃藥"
+          class="flex-1 p-2.5 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400">
+        <button onclick="sendRemoteNotice()" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs flex items-center gap-1">
+          <i data-lucide="send" class="w-3.5 h-3.5"></i>
+          <span>推播</span>
+        </button>
+      </div>
+      <button onclick="clearRemoteNotice()" class="text-[10px] text-zinc-500 hover:text-rose-400">清除螢幕上的留言</button>
+    </div>
+
+    <!-- 功能 2：登記並即時同步新行程 -->
+    <div class="white-frame p-3.5 space-y-3">
+      <h3 class="text-xs font-bold text-white flex items-center gap-1.5 border-b border-zinc-800 pb-2">
+        <i data-lucide="calendar-plus" class="w-4 h-4 text-indigo-400"></i> 新增排程 (即時同步到桌曆)
+      </h3>
+
+      <div class="space-y-2.5">
+        <div>
+          <label class="block text-zinc-400 text-[10px] mb-1">事項名稱 *</label>
+          <input type="text" id="ctrl-evt-title" placeholder="例如：看牙醫、家庭聚會"
+            class="w-full p-2 bg-black border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-indigo-400">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-zinc-400 text-[10px] mb-1">日期 *</label>
+            <input type="date" id="ctrl-evt-date"
+              class="w-full p-2 bg-black border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-indigo-400">
+          </div>
+          <div>
+            <label class="block text-zinc-400 text-[10px] mb-1">時間</label>
+            <div class="flex items-center gap-2">
+              <input type="time" id="ctrl-evt-time" value="12:00"
+                class="flex-1 p-2 bg-black border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-indigo-400">
+              <label class="flex items-center gap-1 text-[10px] text-zinc-400 flex-shrink-0 cursor-pointer">
+                <input type="checkbox" id="ctrl-evt-allday" onchange="toggleCtrlTimeInput(this.checked)" class="accent-indigo-500"> 全天
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-zinc-400 text-[10px] mb-1">重複循環</label>
+            <select id="ctrl-evt-recurrence" class="w-full p-2 bg-black border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-indigo-400">
+              <option value="none">僅單次 (不重複)</option>
+              <option value="daily">每天重複 (每日)</option>
+              <option value="weekly">每週重複 (每週同日)</option>
+              <option value="monthly">每月重複 (每月同日)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-zinc-400 text-[10px] mb-1">地點或備註</label>
+            <input type="text" id="ctrl-evt-location" placeholder="選填"
+              class="w-full p-2 bg-black border border-zinc-700 rounded text-xs text-white focus:outline-none focus:border-indigo-400">
+          </div>
+        </div>
+
+        <button onclick="submitRemoteEvent()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-lg mt-1">
+          <i data-lucide="check-circle" class="w-4 h-4"></i>
+          <span>發布至 iPhone 8 Plus</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 功能 3：管理與刪除所有已排行程 -->
+    <div class="white-frame p-3.5 space-y-2 flex-1 flex flex-col min-h-[200px]">
+      <div class="flex justify-between items-center border-b border-zinc-800 pb-1.5">
+        <h3 class="text-xs font-bold text-white flex items-center gap-1.5">
+          <i data-lucide="list-todo" class="w-4 h-4 text-zinc-300"></i> 目前所有排程清單
+        </h3>
+        <span id="ctrl-total-count" class="text-[10px] text-zinc-500">共 0 項</span>
+      </div>
+
+      <div id="ctrl-events-container" class="space-y-1.5 overflow-y-auto flex-1 max-h-[220px] pr-0.5">
+        <div class="text-center text-zinc-500 text-xs py-6">載入中...</div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================= 彈窗：配對代碼設定 ================= -->
+  <div id="room-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 z-50 hidden">
+    <div class="bg-[#101014] white-frame w-full max-w-sm p-4 text-xs space-y-3.5">
       <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
         <h3 class="font-bold text-sm text-white flex items-center gap-1.5">
-          <i data-lucide="calendar" class="w-4 h-4 text-indigo-400"></i> Google 日曆私密同步設定
+          <i data-lucide="key" class="w-4 h-4 text-indigo-400"></i> 家庭配對設定
         </h3>
-        <button onclick="closeConfigModal()" class="text-zinc-400 hover:text-white p-1">
+        <button onclick="closeRoomConfigModal()" class="text-zinc-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
 
-      <div class="p-3 rounded-lg border border-indigo-500/40 bg-indigo-950/20 space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="font-bold text-indigo-300 flex items-center gap-1">
-            <i data-lucide="lock" class="w-3.5 h-3.5"></i> 私密 iCal 連結（日曆無須公開）
-          </span>
-          <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-200">免裝 App</span>
-        </div>
-        <p class="text-[11px] text-zinc-300 leading-relaxed">
-          <strong>取得方法（只需設定一次）：</strong><br>
-          1. 用電腦或手機瀏覽器開啟 <span class="text-indigo-300 font-medium">calendar.google.com</span><br>
-          2. 點選左側日曆旁的「︙」➔「設定和共用」<br>
-          3. 往下拉找到「整合日曆」，複製<strong class="text-amber-300">「iCal 格式的私密網址」</strong>並貼在下方：
-        </p>
-        <div class="pt-1">
-          <input type="text" id="input-ical-url" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+      <div class="space-y-2 text-zinc-300 leading-relaxed text-[11px]">
+        <p>為全家人設定一個專屬的「家庭配對代碼」（例如：<code class="text-indigo-300">my-macau-home-88</code>）。</p>
+        <p class="text-zinc-400">只要兩台手機輸入相同的代碼，就能隨時互聯互通，不需要註冊任何帳號！</p>
+        
+        <div>
+          <label class="block text-zinc-400 text-[10px] mb-1 font-bold">家庭代碼：</label>
+          <input type="text" id="input-room-code" placeholder="輸入專屬代碼"
             class="w-full p-2.5 bg-black border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-400 font-mono">
         </div>
       </div>
 
-      <div class="flex justify-between items-center pt-1 border-t border-zinc-800">
-        <button onclick="clearCalendarConfig()" class="text-rose-400 hover:text-rose-300 text-[11px]">清除連結</button>
-        <div class="flex gap-2">
-          <button onclick="closeConfigModal()" class="px-3.5 py-1.5 rounded text-zinc-400 hover:text-white border border-zinc-700">取消</button>
-          <button onclick="saveConfig()" class="px-4 py-1.5 bg-indigo-600 text-white font-semibold rounded hover:bg-indigo-500">儲存並同步</button>
-        </div>
+      <div class="flex justify-between items-center pt-2 border-t border-zinc-800">
+        <button onclick="copyPairLink()" class="text-indigo-400 hover:underline flex items-center gap-1 text-[11px]">
+          <i data-lucide="share-2" class="w-3 h-3"></i> 複製連線網址
+        </button>
+        <button onclick="saveRoomConfig()" class="px-4 py-1.5 bg-indigo-600 text-white font-semibold rounded hover:bg-indigo-500">
+          儲存並連線
+        </button>
       </div>
     </div>
   </div>
@@ -300,14 +402,16 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'desk_dashboard_macau_ip8_v12';
+    const STORAGE_KEY = 'desk_dashboard_macau_v15_mqtt';
     
     let appConfig = {
-      icalUrl: '',
-      isIPhone8PlusLocked: false
+      roomCode: 'macau-family-clock',
+      isIPhone8PlusLocked: false,
+      events: [],
+      currentNotice: '',
+      viewMode: 'display' // 'display' (桌曆大螢幕) 或 'remote' (遙控器)
     };
 
-    // 讀取快顯或參數
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -315,10 +419,15 @@
       }
     } catch(e) {}
 
+    // 支援網址參數 ?room=xxx&mode=remote 直接設定
     const urlParams = new URLSearchParams(window.location.search);
-    const paramIcal = urlParams.get('ical');
-    if (paramIcal && paramIcal.trim()) {
-      appConfig.icalUrl = decodeURIComponent(paramIcal.trim());
+    const paramRoom = urlParams.get('room');
+    if (paramRoom && paramRoom.trim()) {
+      appConfig.roomCode = paramRoom.trim().toLowerCase();
+    }
+    const paramMode = urlParams.get('mode');
+    if (paramMode === 'remote') {
+      appConfig.viewMode = 'remote';
     }
 
     let toastTimer = null;
@@ -334,7 +443,38 @@
     }
 
     /* ====================================================================
-     * 1. iPhone 8 Plus 比例適配切換
+     * 1. 視圖切換 (桌曆螢幕 vs 手機遙控器)
+     * ==================================================================== */
+    function applyViewMode() {
+      const displayView = document.getElementById('display-view');
+      const remoteView = document.getElementById('remote-control-view');
+      const btnText = document.getElementById('view-mode-text');
+      const btnIp8 = document.getElementById('btn-ip8-mode');
+
+      if (appConfig.viewMode === 'remote') {
+        displayView.classList.add('hidden');
+        remoteView.classList.remove('hidden');
+        btnText.textContent = '返回桌曆螢幕';
+        btnIp8.classList.add('hidden');
+        renderControlView();
+      } else {
+        remoteView.classList.add('hidden');
+        displayView.classList.remove('hidden');
+        btnText.textContent = '切換至遙控模式';
+        btnIp8.classList.remove('hidden');
+        renderDisplayEvents();
+        updateNoticeBanner();
+      }
+      lucide.createIcons();
+    }
+
+    function switchViewMode() {
+      appConfig.viewMode = (appConfig.viewMode === 'display') ? 'remote' : 'display';
+      applyViewMode();
+    }
+
+    /* ====================================================================
+     * 2. iPhone 8 Plus 比例鎖定
      * ==================================================================== */
     function applyIPhone8PlusStyle() {
       const container = document.getElementById('main-container');
@@ -344,12 +484,12 @@
       if (appConfig.isIPhone8PlusLocked) {
         container.classList.add('iphone-8plus-mode');
         btn.classList.add('bg-indigo-700', 'text-white');
-        btn.classList.remove('bg-zinc-900', 'text-indigo-300');
+        btn.classList.remove('bg-zinc-900', 'text-zinc-300');
         txt.textContent = '8 Plus (已鎖定)';
       } else {
         container.classList.remove('iphone-8plus-mode');
         btn.classList.remove('bg-indigo-700', 'text-white');
-        btn.classList.add('bg-zinc-900', 'text-indigo-300');
+        btn.classList.add('bg-zinc-900', 'text-zinc-300');
         txt.textContent = '8 Plus 比例';
       }
     }
@@ -362,7 +502,114 @@
     }
 
     /* ====================================================================
-     * 2. 澳門標準時間 (安全相容 iOS 16 核心)
+     * 3. 跨裝置即時通訊中樞 (MQTT over Secure WebSocket)
+     * ==================================================================== */
+    let mqttClient = null;
+
+    function getTopic() {
+      const code = (appConfig.roomCode || 'macau-family-clock').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+      return `macau_desk_display_${code}/sync`;
+    }
+
+    function initMqtt() {
+      const statusElem = document.getElementById('sync-status');
+      const dot = document.getElementById('sync-dot');
+
+      if (mqttClient) {
+        try { mqttClient.end(); } catch (e) {}
+      }
+
+      statusElem.textContent = '連線即時中樞...';
+      dot.className = 'inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping';
+
+      // 使用全球可靠的公開 WebSocket Broker (支援 WSS 443 加密傳輸，免註冊)
+      const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+      const clientId = 'desk_' + Math.random().toString(16).substring(2, 10);
+
+      try {
+        mqttClient = mqtt.connect(brokerUrl, {
+          clientId,
+          clean: true,
+          connectTimeout: 5000,
+          reconnectPeriod: 3000
+        });
+
+        mqttClient.on('connect', () => {
+          const topic = getTopic();
+          mqttClient.subscribe(topic, { qos: 1 });
+          statusElem.textContent = `已即時連線 (${appConfig.roomCode})`;
+          dot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+          document.getElementById('remote-current-code').textContent = appConfig.roomCode;
+          
+          // 若本機已有最新資料，廣播請求對方同步
+          broadcastState('query');
+        });
+
+        mqttClient.on('message', (topic, message) => {
+          try {
+            const payload = JSON.parse(message.toString());
+            handleRemoteMessage(payload);
+          } catch (e) {}
+        });
+
+        mqttClient.on('error', () => {
+          statusElem.textContent = '重連中...';
+          dot.className = 'inline-block w-2 h-2 rounded-full bg-rose-500';
+        });
+
+        mqttClient.on('offline', () => {
+          statusElem.textContent = '離線待命中';
+          dot.className = 'inline-block w-2 h-2 rounded-full bg-zinc-500';
+        });
+      } catch (err) {
+        statusElem.textContent = '本地離線模式';
+      }
+    }
+
+    function broadcastState(actionType) {
+      if (!mqttClient || !mqttClient.connected) return;
+      const topic = getTopic();
+      const packet = {
+        action: actionType,
+        senderId: mqttClient.options.clientId,
+        timestamp: Date.now(),
+        events: appConfig.events || [],
+        notice: appConfig.currentNotice || ''
+      };
+      mqttClient.publish(topic, JSON.stringify(packet), { qos: 1 });
+    }
+
+    function handleRemoteMessage(payload) {
+      if (!payload || payload.senderId === (mqttClient && mqttClient.options.clientId)) {
+        return; // 忽略自己發送的訊息
+      }
+
+      if (payload.action === 'query') {
+        // 對方剛上線，把我們的資料傳給他
+        broadcastState('sync');
+        return;
+      }
+
+      if (payload.action === 'sync' || payload.action === 'update' || payload.action === 'notice') {
+        if (Array.isArray(payload.events)) {
+          appConfig.events = payload.events;
+        }
+        if (payload.notice !== undefined) {
+          appConfig.currentNotice = payload.notice;
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+
+        // 重新渲染介面
+        renderDisplayEvents();
+        updateNoticeBanner();
+        if (appConfig.viewMode === 'remote') renderControlView();
+
+        showToast('⚡ 已接收遠端即時更新！');
+      }
+    }
+
+    /* ====================================================================
+     * 4. 時鐘與澳門標準時間
      * ==================================================================== */
     const weekdaysHK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
     let lastRecordedDate = -1;
@@ -424,17 +671,16 @@
 
       if (lastRecordedDate !== -1 && lastRecordedDate !== p.date) {
         lastRecordedDate = p.date;
-        syncCalendarData(false);
+        renderDisplayEvents();
         fetchWeather(false);
       }
       lastRecordedDate = p.date;
     }
-
     setInterval(updateClock, 1000);
     updateClock();
 
     /* ====================================================================
-     * 3. 望廈天氣 (Open-Meteo 高精度 API)
+     * 5. 望廈天氣 (Open-Meteo)
      * ==================================================================== */
     async function fetchWeather(isManual = false) {
       const spin = document.getElementById('weather-spin');
@@ -443,7 +689,7 @@
       try {
         const url = 'https://api.open-meteo.com/v1/forecast?latitude=22.1987&longitude=113.5439&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&daily=uv_index_max&timezone=Asia%2FMacau';
         const res = await fetch(url);
-        if (!res.ok) throw new Error('API 回應異常');
+        if (!res.ok) throw new Error('API Error');
         const data = await res.json();
         const curr = data.current;
 
@@ -472,11 +718,9 @@
         iconBox.className = currMeta.color;
         iconBox.innerHTML = `<i data-lucide="${currMeta.icon}" class="w-6 h-6 sm:w-7 sm:h-7"></i>`;
 
-        // 未來預測滾動條
         if (data.hourly && data.hourly.time && data.hourly.time.length > 0) {
           const p = getMacauDateParts();
           const targetPrefix = `${p.year}-${String(p.month).padStart(2,'0')}-${String(p.date).padStart(2,'0')}T${String(p.hour).padStart(2,'0')}`;
-          
           let currentIndex = data.hourly.time.findIndex(t => t.startsWith(targetPrefix));
           if (currentIndex === -1) currentIndex = 0;
 
@@ -511,7 +755,6 @@
               `;
             }
           });
-
           hourlyStrip.innerHTML = stripHtml;
         }
 
@@ -523,193 +766,37 @@
         if (spin) spin.classList.remove('animate-spin');
       }
     }
-
     fetchWeather();
     setInterval(fetchWeather, 15 * 60 * 1000);
 
     /* ====================================================================
-     * 4. Google 日曆私密 iCal 解析與同步引擎
+     * 6. 行程過濾與展示邏輯
      * ==================================================================== */
-    function parseICS(icsData) {
-      const events = [];
-      const lines = icsData.replace(/\r\n /g, '').replace(/\r/g, '').split('\n');
-      let inEvent = false;
-      let curr = {};
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line === 'BEGIN:VEVENT') {
-          inEvent = true;
-          curr = {};
-        } else if (line === 'END:VEVENT') {
-          inEvent = false;
-          if (curr.summary && curr.dtstart) {
-            events.push(curr);
-          }
-        } else if (inEvent) {
-          const colonIdx = line.indexOf(':');
-          if (colonIdx !== -1) {
-            const rawKey = line.substring(0, colonIdx);
-            const val = line.substring(colonIdx + 1);
-            const key = rawKey.split(';')[0];
-
-            if (key === 'SUMMARY') {
-              curr.summary = val.replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/g, ' ');
-            } else if (key === 'LOCATION') {
-              curr.location = val.replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\n/g, ' ');
-            } else if (key === 'DTSTART') {
-              curr.dtstart = val;
-              curr.isAllDay = !val.includes('T');
-            } else if (key === 'DTEND') {
-              curr.dtend = val;
-            } else if (key === 'RRULE') {
-              curr.rrule = val;
-            }
-          }
-        }
-      }
-      return events;
-    }
-
-    function parseIcsDate(dtStr) {
-      if (!dtStr) return null;
-      if (dtStr.length === 8) {
-        const y = parseInt(dtStr.substring(0, 4), 10);
-        const m = parseInt(dtStr.substring(4, 6), 10) - 1;
-        const d = parseInt(dtStr.substring(6, 8), 10);
-        return { isAllDay: true, dateStr: `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`, timeStr: '全天' };
-      }
-      
-      const clean = dtStr.replace(/[^0-9TZ]/g, '');
-      const y = parseInt(clean.substring(0, 4), 10);
-      const m = parseInt(clean.substring(4, 6), 10) - 1;
-      const d = parseInt(clean.substring(6, 8), 10);
-      const h = parseInt(clean.substring(9, 11), 10) || 0;
-      const min = parseInt(clean.substring(11, 13), 10) || 0;
-      const s = parseInt(clean.substring(13, 15), 10) || 0;
-
-      let dateObj;
-      if (clean.endsWith('Z')) {
-        dateObj = new Date(Date.UTC(y, m, d, h, min, s));
-      } else {
-        dateObj = new Date(y, m, d, h, min, s);
-      }
-
-      const formatter = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Asia/Macau',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', hour12: false
-      });
-      const parts = formatter.formatToParts(dateObj);
-      const p = {};
-      parts.forEach(pt => p[pt.type] = pt.value);
-
-      return {
-        isAllDay: false,
-        dateStr: `${p.year}-${p.month}-${p.day}`,
-        timeStr: `${p.hour}:${p.minute}`
-      };
-    }
-
-    async function fetchGoogleCalendarEvents(icalUrl) {
-      if (!icalUrl || !icalUrl.trim()) return null;
-      let cleanUrl = icalUrl.trim().replace(/^webcal:\/\//i, 'https://');
-      
-      // 透過雙通道代理穿透 CORS
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(cleanUrl)}`;
-
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 7500);
-        const res = await fetch(proxyUrl, { signal: controller.signal });
-        clearTimeout(timeout);
-        
-        if (res.ok) {
-          const text = await res.text();
-          if (text.includes('BEGIN:VCALENDAR')) return parseICS(text);
-        }
-      } catch (e) {}
-
-      // 備用通道
-      try {
-        const fallbackProxy = `https://corsproxy.io/?${encodeURIComponent(cleanUrl)}`;
-        const res2 = await fetch(fallbackProxy);
-        if (res2.ok) {
-          const text2 = await res2.text();
-          if (text2.includes('BEGIN:VCALENDAR')) return parseICS(text2);
-        }
-      } catch(err2) {}
-
-      return null;
-    }
-
-    async function syncCalendarData(isManual = false) {
-      const statusElem = document.getElementById('sync-status');
-      const listContainer = document.getElementById('calendar-event-list');
-      const timeElem = document.getElementById('cal-sync-time');
-      const spin = document.getElementById('cal-spin');
-      const dot = document.getElementById('sync-dot');
-
-      if (spin && isManual) spin.classList.add('animate-spin');
-      if (dot) dot.className = 'inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping';
-      statusElem.textContent = '同步 Google 日曆...';
-
+    function filterTodayEvents() {
       const todayParts = getMacauDateParts();
       const todayStr = getMacauTodayStr();
-
-      if (!appConfig.icalUrl) {
-        statusElem.textContent = '未綁定 Google 日曆';
-        if (spin) spin.classList.remove('animate-spin');
-        if (dot) dot.className = 'inline-block w-2 h-2 rounded-full bg-zinc-500';
-        
-        listContainer.innerHTML = `
-          <div class="h-full flex flex-col items-center justify-center text-zinc-500 text-xs py-6">
-            <i data-lucide="calendar-off" class="w-7 h-7 mb-2 text-zinc-600"></i>
-            <span class="text-zinc-400 font-medium">尚未設定 Google 日曆</span>
-            <button onclick="openConfigModal()" class="mt-2.5 px-3 py-1 bg-indigo-600 text-white rounded text-[11px] font-medium hover:bg-indigo-500">
-              貼上私密 iCal 連結
-            </button>
-          </div>
-        `;
-        lucide.createIcons();
-        return;
-      }
-
-      let parsedRawEvents = await fetchGoogleCalendarEvents(appConfig.icalUrl);
-
-      if (spin) spin.classList.remove('animate-spin');
-      if (dot) dot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
-
-      if (!parsedRawEvents) {
-        statusElem.textContent = 'Google 連線重試中';
-        if (isManual) showToast('⚠️ 無法解析 Google 日曆，請檢查 iCal 私密網址');
-        return;
-      }
-
+      const allEvents = appConfig.events || [];
       const todayEvents = [];
-      parsedRawEvents.forEach(raw => {
-        const dt = parseIcsDate(raw.dtstart);
-        if (!dt) return;
 
+      allEvents.forEach(evt => {
         let isToday = false;
         let recurrenceBadge = '';
 
-        if (dt.dateStr === todayStr) {
+        if (evt.date === todayStr && (!evt.recurrence || evt.recurrence === 'none')) {
           isToday = true;
-        } else if (raw.rrule && dt.dateStr <= todayStr) {
-          const r = raw.rrule;
-          if (r.includes('FREQ=DAILY')) {
+        } else if (evt.recurrence && evt.recurrence !== 'none' && evt.date <= todayStr) {
+          if (evt.recurrence === 'daily') {
             isToday = true;
             recurrenceBadge = '每天';
-          } else if (r.includes('FREQ=WEEKLY')) {
-            const [y, m, d] = dt.dateStr.split('-').map(Number);
+          } else if (evt.recurrence === 'weekly') {
+            const [y, m, d] = evt.date.split('-').map(Number);
             const origDay = new Date(y, m - 1, d).getDay();
             if (origDay === todayParts.day) {
               isToday = true;
               recurrenceBadge = '每週';
             }
-          } else if (r.includes('FREQ=MONTHLY')) {
-            const [y, m, d] = dt.dateStr.split('-').map(Number);
+          } else if (evt.recurrence === 'monthly') {
+            const [y, m, d] = evt.date.split('-').map(Number);
             if (d === todayParts.date) {
               isToday = true;
               recurrenceBadge = '每月';
@@ -719,11 +806,12 @@
 
         if (isToday) {
           todayEvents.push({
-            title: raw.summary || '未命名事項',
-            time: dt.timeStr,
-            isAllDay: dt.isAllDay,
-            location: raw.location || '',
-            recurrence: recurrenceBadge
+            id: evt.id,
+            title: evt.title,
+            time: evt.time,
+            isAllDay: evt.isAllDay,
+            location: evt.location,
+            recurrenceBadge
           });
         }
       });
@@ -734,20 +822,26 @@
         return (a.time || '').localeCompare(b.time || '');
       });
 
+      return todayEvents;
+    }
+
+    function renderDisplayEvents() {
+      const listContainer = document.getElementById('calendar-event-list');
+      const timeElem = document.getElementById('cal-sync-time');
+      const todayEvents = filterTodayEvents();
+
       const p = getMacauDateParts();
-      timeElem.textContent = `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')} Google 同步`;
-      statusElem.textContent = `Google 日曆 (${todayEvents.length})`;
+      timeElem.textContent = `${String(p.hour).padStart(2,'0')}:${String(p.minute).padStart(2,'0')} 待命中`;
 
       if (todayEvents.length === 0) {
         listContainer.innerHTML = `
-          <div class="h-full flex flex-col items-center justify-center text-zinc-500 text-xs py-6">
+          <div class="h-full flex flex-col items-center justify-center text-zinc-500 text-xs py-8">
             <i data-lucide="calendar-check" class="w-7 h-7 mb-2 text-zinc-600"></i>
-            <span>今日無 Google 日曆行程</span>
-            <span class="text-[10px] text-zinc-600 mt-1">在手機 Google 日曆新增即可自動排入</span>
+            <span>今日無待辦日程</span>
+            <span class="text-[10px] text-zinc-600 mt-1">在手機切換遙控模式即可即時加入</span>
           </div>
         `;
         lucide.createIcons();
-        if (isManual) showToast('已同步，今日無排定行程');
         return;
       }
 
@@ -756,7 +850,7 @@
           <div class="flex justify-between items-start">
             <div class="flex items-center gap-1.5 truncate max-w-[150px] sm:max-w-[180px]">
               <span class="text-xs font-semibold text-white tracking-wide truncate">${escapeHtml(evt.title)}</span>
-              ${evt.recurrence ? `<span class="text-[8px] px-1 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-700/50">${evt.recurrence}</span>` : ''}
+              ${evt.recurrenceBadge ? `<span class="text-[8px] px-1 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-700/50">${evt.recurrenceBadge}</span>` : ''}
             </div>
             <span class="text-[9px] px-1.5 py-0.5 rounded ${evt.isAllDay ? 'bg-indigo-950 text-indigo-300 border border-indigo-700/50' : 'bg-zinc-800 text-zinc-300 font-mono'}">
               ${evt.isAllDay ? '全天事項' : evt.time}
@@ -772,37 +866,180 @@
       `).join('');
 
       lucide.createIcons();
-      if (isManual) showToast(`成功同步 ${todayEvents.length} 個 Google 日曆行程`);
     }
 
     /* ====================================================================
-     * 5. 彈窗與設定
+     * 7. 即時置頂留言 (Notice Banner)
      * ==================================================================== */
-    function openConfigModal() {
-      document.getElementById('input-ical-url').value = appConfig.icalUrl || '';
-      document.getElementById('config-modal').classList.remove('hidden');
+    function updateNoticeBanner() {
+      const banner = document.getElementById('notice-banner');
+      const content = document.getElementById('notice-content');
+      if (appConfig.currentNotice && appConfig.currentNotice.trim()) {
+        content.textContent = appConfig.currentNotice;
+        banner.classList.remove('hidden');
+      } else {
+        banner.classList.add('hidden');
+      }
+      lucide.createIcons();
     }
 
-    function closeConfigModal() {
-      document.getElementById('config-modal').classList.add('hidden');
-    }
-
-    function saveConfig() {
-      const url = document.getElementById('input-ical-url').value.trim();
-      appConfig.icalUrl = url;
+    function dismissNotice() {
+      appConfig.currentNotice = '';
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
-      closeConfigModal();
-      showToast('已儲存 Google 日曆私密連結，正在同步...');
-      syncCalendarData(true);
+      updateNoticeBanner();
+      broadcastState('notice');
     }
 
-    function clearCalendarConfig() {
-      appConfig.icalUrl = '';
-      document.getElementById('input-ical-url').value = '';
+    function sendRemoteNotice() {
+      const text = document.getElementById('ctrl-notice-input').value.trim();
+      if (!text) {
+        showToast('請輸入留言內容');
+        return;
+      }
+      appConfig.currentNotice = text;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
-      closeConfigModal();
-      showToast('已清除 Google 日曆連結');
-      syncCalendarData(false);
+      document.getElementById('ctrl-notice-input').value = '';
+      broadcastState('notice');
+      showToast('✅ 留言已即時推播至 iPhone 8 Plus！');
+    }
+
+    function clearRemoteNotice() {
+      appConfig.currentNotice = '';
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+      broadcastState('notice');
+      showToast('已清除置頂留言');
+    }
+
+    /* ====================================================================
+     * 8. 遙控器端操作邏輯 (發布 / 刪除行程)
+     * ==================================================================== */
+    function toggleCtrlTimeInput(isAllDay) {
+      const timeInput = document.getElementById('ctrl-evt-time');
+      timeInput.disabled = isAllDay;
+      timeInput.style.opacity = isAllDay ? '0.3' : '1';
+    }
+
+    function submitRemoteEvent() {
+      const title = document.getElementById('ctrl-evt-title').value.trim();
+      const date = document.getElementById('ctrl-evt-date').value;
+      const isAllDay = document.getElementById('ctrl-evt-allday').checked;
+      const time = isAllDay ? '全天' : document.getElementById('ctrl-evt-time').value;
+      const recurrence = document.getElementById('ctrl-evt-recurrence').value;
+      const location = document.getElementById('ctrl-evt-location').value.trim();
+
+      if (!title) {
+        showToast('⚠️ 請輸入事項名稱');
+        return;
+      }
+      if (!date) {
+        showToast('⚠️ 請選擇日期');
+        return;
+      }
+
+      const newEvt = {
+        id: 'evt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        title,
+        date,
+        time,
+        isAllDay,
+        recurrence,
+        location,
+        createdAt: new Date().toISOString()
+      };
+
+      appConfig.events.push(newEvt);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+
+      // 即時廣播
+      broadcastState('update');
+
+      // 清空表單
+      document.getElementById('ctrl-evt-title').value = '';
+      document.getElementById('ctrl-evt-location').value = '';
+      renderControlView();
+      showToast('✅ 已同步推播！iPhone 8 Plus 畫面已更新');
+    }
+
+    function deleteRemoteEvent(id) {
+      appConfig.events = appConfig.events.filter(e => e.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+      broadcastState('update');
+      renderControlView();
+      showToast('已刪除並同步');
+    }
+
+    function renderControlView() {
+      const container = document.getElementById('ctrl-events-container');
+      const countElem = document.getElementById('ctrl-total-count');
+      const events = appConfig.events || [];
+      countElem.textContent = `共 ${events.length} 項`;
+
+      if (events.length === 0) {
+        container.innerHTML = `<div class="text-center text-zinc-500 py-6 text-xs">目前無排程紀錄</div>`;
+      } else {
+        const sorted = [...events].sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+        container.innerHTML = sorted.map(ev => {
+          let recLabel = '';
+          if (ev.recurrence === 'daily') recLabel = '每天';
+          else if (ev.recurrence === 'weekly') recLabel = '每週';
+          else if (ev.recurrence === 'monthly') recLabel = '每月';
+
+          return `
+            <div class="p-2 white-frame-sub bg-zinc-950 flex justify-between items-center text-xs">
+              <div class="flex-1 min-w-0 pr-2">
+                <div class="flex items-center gap-1.5 truncate">
+                  <span class="font-semibold text-white truncate">${escapeHtml(ev.title)}</span>
+                  ${recLabel ? `<span class="text-[9px] px-1 rounded bg-indigo-950 text-indigo-300 border border-indigo-700/50">${recLabel}</span>` : ''}
+                </div>
+                <div class="text-[10px] text-zinc-400 font-mono mt-0.5">
+                  ${ev.date} • ${ev.isAllDay ? '全天' : ev.time} ${ev.location ? `• ${escapeHtml(ev.location)}` : ''}
+                </div>
+              </div>
+              <button onclick="deleteRemoteEvent('${ev.id}')" class="text-rose-400 hover:text-rose-300 p-1.5 rounded bg-zinc-900 border border-zinc-800 flex-shrink-0">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          `;
+        }).join('');
+      }
+      lucide.createIcons();
+    }
+
+    /* ====================================================================
+     * 9. 配對設定視窗
+     * ==================================================================== */
+    function openRoomConfigModal() {
+      document.getElementById('input-room-code').value = appConfig.roomCode || 'macau-family-clock';
+      document.getElementById('room-modal').classList.remove('hidden');
+    }
+
+    function closeRoomConfigModal() {
+      document.getElementById('room-modal').classList.add('hidden');
+    }
+
+    function saveRoomConfig() {
+      const code = document.getElementById('input-room-code').value.trim().toLowerCase();
+      if (code) {
+        appConfig.roomCode = code;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appConfig));
+        closeRoomConfigModal();
+        initMqtt();
+        showToast(`已切換至家庭代碼：${code}`);
+      }
+    }
+
+    function copyPairLink() {
+      const code = (document.getElementById('input-room-code').value.trim() || appConfig.roomCode).toLowerCase();
+      const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(code)}&mode=remote`;
+      
+      const el = document.createElement('textarea');
+      el.value = shareUrl;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+
+      showToast('已複製遙控專用網址！在你的手機打開即可直接控制');
     }
 
     function escapeHtml(str) {
@@ -813,47 +1050,32 @@
     }
 
     /* ====================================================================
-     * 6. iPhone 螢幕防休眠 (iOS Safari 相容 WakeLock)
+     * 10. 初始化與防休眠
      * ==================================================================== */
-    let wakeLockInstance = null;
-
     async function requestWakeLock() {
       try {
         if ('wakeLock' in navigator) {
-          wakeLockInstance = await navigator.wakeLock.request('screen');
+          await navigator.wakeLock.request('screen');
         }
       } catch (e) {}
     }
 
-    function requestFullScreen() {
-      const doc = document.documentElement;
-      if (doc.requestFullscreen) doc.requestFullscreen();
-      else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
-      else showToast('iPhone 提示：在 Safari 點分享 ➔ 加入主畫面，即可享受純淨全螢幕');
-    }
-
     window.addEventListener('load', () => {
-      lucide.createIcons();
+      document.getElementById('ctrl-evt-date').value = getMacauTodayStr();
+      applyViewMode();
       applyIPhone8PlusStyle();
-      syncCalendarData(false);
+      initMqtt();
       requestWakeLock();
-
-      // 每 60 秒定時刷新
-      setInterval(() => {
-        syncCalendarData(false);
-      }, 60 * 1000);
     });
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         requestWakeLock();
-        syncCalendarData(false);
+        renderDisplayEvents();
+        updateNoticeBanner();
         fetchWeather(false);
+        if (!mqttClient || !mqttClient.connected) initMqtt();
       }
-    });
-
-    window.addEventListener('focus', () => {
-      syncCalendarData(false);
     });
 
     document.addEventListener('touchstart', requestWakeLock, { once: true });
